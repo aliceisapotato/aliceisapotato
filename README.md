@@ -8,4 +8,3 @@
 aliceisapotato/aliceisapotato is a ✨ special ✨ repository because its `README.md` (this file) appears on your GitHub profile.
 You can click the Preview link to take a look at your changes.
 --->
-![image](https://user-images.githubusercontent.com/38399899/190128861-20512381-74bf-42e0-ae3e-c5307a381a4d.png)
