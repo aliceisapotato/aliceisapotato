@@ -1,62 +1,94 @@
-# Shift Scheduler
+# Shift Ledger
 
-A single-file scheduler for staffing volunteer and workforce shifts. Open
-`index.html` in any browser — no install, no server, no accounts. Everything is
-stored in that browser's local storage.
+A single-file scheduler for staffing the competition weekend of
+**Saturday 5 – Sunday 6 September 2026**. Open `index.html` in any browser —
+no install, no server, no accounts. Everything is stored in that browser.
 
-## What it does
+## The event as configured
 
-**Roster.** Each person gets the roles they're trained for, the days they're
-available, an earliest/latest time, and a weekly shift cap. Leave roles blank
-for someone who can cover anything.
+The day runs from **bump in at 7.45am** to **bump out finishing at 7pm**, across
+two venues:
 
-**Shifts.** A shift is a date, a time range, a role, and how many people it
-needs. "Add & repeat weekly" creates the same shift for the next *n* weeks in
-one go. Overnight shifts (22:00–02:00) are handled correctly.
+| Venue | | Roles | Public hours |
+|---|---|---|---|
+| **Stadium Hall** | competition hall | Umpire, Match Control, Warden | matches from 9.00am |
+| **Games Hall** | activation festival | Monash Badminton Club, Booth support, Warden, Snack Area | open from 10.30am |
 
-**Staffing.** Click any shift to open the staffing drawer. Candidates are
-ranked with the best fit first; anyone who can't work it is greyed out with the
-reason why, and can still be assigned over the warning if you decide to.
+The run sheet built from this is 42 shifts — 21 per day:
 
-**Auto-fill week.** Fills every open slot in the visible week at once. It
-never breaks a hard constraint, and it spreads work evenly by always picking
-whoever has the fewest shifts that week. Where the only remaining candidates
-are at their weekly cap, it tells you how many slots that affects and asks
-before going over.
+**Stadium Hall** — bump in 7.45–9.00 · matches 9.00–12.00, 12.00–3.00, 3.00–6.00 · bump out 6.00–7.00
+**Games Hall** — bump in 7.45–10.30 · festival 10.30–2.00, 2.00–5.00 · bump out 5.00–7.00
 
-**Issues panel.** Live list of everything wrong with the current week —
-understaffed shifts, double-bookings, people scheduled outside their
-availability, anyone over their cap. Click a row to jump to the shift.
+Blocks run back-to-back with no gaps, and every role is staffed in every
+session block.
 
-**Reports.** Coverage percentage, hours per person, and fill rate per role for
-any date range, exportable to CSV.
+### Assumptions worth checking
+
+These were not specified, so they are starting points rather than settings in
+stone. All are editable per shift on the **Shifts** tab, and **Reset run sheet**
+rebuilds the default at any time.
+
+- **Session block lengths.** Stadium Hall is cut into three ~3-hour blocks and
+  Games Hall into two, so volunteers rotate rather than standing a ten-hour day.
+- **Games Hall closes at 5pm**, with the last two hours used for bump out.
+  Stadium Hall runs to 6pm with a one-hour bump out.
+- **Headcounts.** Per session block: Stadium Hall 4 Umpires, 2 Match Control,
+  2 Wardens; Games Hall 2 Monash Badminton Club, 3 Booth support, 2 Wardens,
+  2 Snack Area. Bump in/out crews are 4 (Stadium) and 3 (Games).
+- **Bump in and bump out are Warden shifts**, since Warden is the general crew
+  role at both venues. Anyone with no role restriction can be assigned to them.
+
+## Using it
+
+**1. Add your volunteers.** People tab → *Paste a list*, one per line, roles
+after a comma:
+
+```
+Priya Raman, Umpire, Match Control
+Tom Nguyen, Umpire
+Sam Wu
+```
+
+Everyone pasted is available both days at both venues with an 8-hour daily
+limit; edit individuals afterwards to narrow their days, venues, roles, hours
+or arrival/departure times. Leave someone's roles blank and they can be put
+anywhere.
+
+**2. Auto-fill event.** Fills every open slot across both days at once. It
+never breaks a hard rule, and it levels the workload by always picking whoever
+has the fewest hours that day. Where the only remaining candidates would go
+over their daily hours, it says how many slots that affects and asks first.
+
+**3. Fix what's flagged.** The Issues panel lists every gap and conflict live,
+and says whether auto-fill can actually cover each gap. Click a row to jump
+straight to that shift.
+
+**4. Hand it out.** **Print** gives a clean two-day board for the noticeboard.
+**CSV** exports one row per shift with the assigned names, for the whole event
+or a single day.
 
 ## Scheduling rules
 
 Hard constraints — auto-fill will never violate these, and the app flags them
 if you assign around them manually:
 
-- the person is trained for the role (or has no role restriction)
-- the shift falls on a day they marked available
-- the shift fits inside their earliest/latest times
-- they aren't already on an overlapping shift that day
+- the person is signed up for that role (or has no role restriction)
+- the person is rostered at that venue
+- the shift falls on a day they are available
+- the shift fits inside their arrival/departure times
+- they are not already on an overlapping shift
 
 Soft constraint — warned about, and only crossed with your confirmation:
 
-- their weekly shift cap
+- their maximum hours in a single day
 
 ## Data
 
-Data lives in the browser under the key `shift-scheduler.v1`, so it stays on the
-machine and survives reloads, but it does not sync between browsers or devices.
-**Backup** downloads the whole dataset as JSON and **Restore** loads it back —
-that's how you move a schedule to another machine or keep a copy.
+Data lives in the browser under the key `shift-scheduler.v2`, so it stays on
+the machine and survives reloads, but it does **not** sync between browsers,
+devices or people. **Backup** downloads the whole dataset as JSON and
+**Restore** loads it back — that is how you move the schedule to another
+machine or keep a copy before a big change.
 
-To start from scratch, clear the site data for the page; the app reseeds with a
-small sample roster and week of shifts so nothing is ever a blank screen.
-
-## Sharing a finished schedule
-
-**Print** produces a clean week grid with the app chrome stripped out, which
-prints or saves to PDF for a noticeboard. **CSV** exports the week (or any date
-range from Reports) with one row per shift and the assigned names.
+If several coordinators need to edit one live schedule at the same time, that
+needs a hosted backend and is a different build.
