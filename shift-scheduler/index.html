@@ -1,0 +1,1354 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Shift Scheduler</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --surface-2: #f0f2f5;
+    --border: #dfe3e8;
+    --border-strong: #c3cad3;
+    --text: #16191d;
+    --text-dim: #5c6672;
+    --accent: #2f6feb;
+    --accent-soft: #e7efff;
+    --ok: #1a7f4b;
+    --ok-soft: #e2f5ea;
+    --warn: #9a6200;
+    --warn-soft: #fdf1d8;
+    --bad: #b3261e;
+    --bad-soft: #fce8e6;
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.08);
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171b;
+      --surface: #1c2026;
+      --surface-2: #23282f;
+      --border: #303740;
+      --border-strong: #444d59;
+      --text: #e8eaed;
+      --text-dim: #9aa4b0;
+      --accent: #7aa5ff;
+      --accent-soft: #1e2a44;
+      --ok: #6fd39b;
+      --ok-soft: #14301f;
+      --warn: #e6b45c;
+      --warn-soft: #33280f;
+      --bad: #ef8b83;
+      --bad-soft: #3a1a17;
+      --shadow: 0 1px 2px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171b;
+    --surface: #1c2026;
+    --surface-2: #23282f;
+    --border: #303740;
+    --border-strong: #444d59;
+    --text: #e8eaed;
+    --text-dim: #9aa4b0;
+    --accent: #7aa5ff;
+    --accent-soft: #1e2a44;
+    --ok: #6fd39b;
+    --ok-soft: #14301f;
+    --warn: #e6b45c;
+    --warn-soft: #33280f;
+    --bad: #ef8b83;
+    --bad-soft: #3a1a17;
+    --shadow: 0 1px 2px rgba(0,0,0,.4);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: -.01em; }
+  h1 { font-size: 1.15rem; }
+  h2 { font-size: 1rem; }
+  h3 { font-size: .82rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); font-weight: 600; }
+
+  /* ---------- layout ---------- */
+  header.app {
+    position: sticky; top: 0; z-index: 40;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 10px 18px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  header.app .brand { display: flex; align-items: center; gap: 9px; margin-right: 4px; }
+  header.app .dot { width: 10px; height: 10px; border-radius: 3px; background: var(--accent); }
+  nav.tabs { display: flex; gap: 2px; background: var(--surface-2); padding: 3px; border-radius: 9px; }
+  nav.tabs button {
+    border: 0; background: transparent; color: var(--text-dim);
+    font: 600 13px var(--sans); padding: 6px 13px; border-radius: 7px; cursor: pointer;
+  }
+  nav.tabs button:hover { color: var(--text); }
+  nav.tabs button[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+  header.app .spacer { flex: 1; }
+
+  main { padding: 18px; max-width: 1500px; margin: 0 auto; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 16px; margin-bottom: 16px;
+  }
+  .card > header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .card > header .spacer { flex: 1; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .grid-2 { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 16px; }
+  @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  /* ---------- controls ---------- */
+  label.field { display: flex; flex-direction: column; gap: 4px; font: 600 12px var(--sans); color: var(--text-dim); }
+  input, select, textarea, button { font: inherit; color: inherit; }
+  input[type=text], input[type=date], input[type=time], input[type=number], input[type=email], select, textarea {
+    background: var(--surface); border: 1px solid var(--border-strong); color: var(--text);
+    border-radius: 7px; padding: 6px 9px; font-size: 14px; font-weight: 400; min-width: 0;
+  }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  textarea { resize: vertical; min-height: 56px; }
+  .btn {
+    border: 1px solid var(--border-strong); background: var(--surface); color: var(--text);
+    padding: 6px 12px; border-radius: 7px; cursor: pointer; font: 600 13px var(--sans);
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.danger { color: var(--bad); border-color: var(--bad); background: transparent; }
+  .btn.danger:hover { background: var(--bad-soft); }
+  .btn.sm { padding: 3px 8px; font-size: 12px; border-radius: 6px; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .icon-btn { border: 0; background: transparent; cursor: pointer; color: var(--text-dim); padding: 2px 5px; border-radius: 5px; font-size: 14px; }
+  .icon-btn:hover { background: var(--surface-2); color: var(--text); }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 999px; padding: 2px 9px; font-size: 12px; font-weight: 600;
+  }
+  .chip.role { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
+  .chip.ok { background: var(--ok-soft); color: var(--ok); border-color: transparent; }
+  .chip.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+  .chip.bad { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
+  .chip button { border: 0; background: none; cursor: pointer; color: inherit; padding: 0 0 0 2px; font-size: 13px; line-height: 1; opacity: .65; }
+  .chip button:hover { opacity: 1; }
+
+  .muted { color: var(--text-dim); }
+  .small { font-size: 12.5px; }
+  .mono { font-family: var(--mono); font-size: 12.5px; }
+  .empty { color: var(--text-dim); font-style: italic; padding: 18px 4px; text-align: center; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font: 600 11.5px var(--sans); text-transform: uppercase; letter-spacing: .05em; color: var(--text-dim); }
+  tbody tr:hover { background: var(--surface-2); }
+  .table-wrap { overflow-x: auto; }
+
+  /* ---------- week grid ---------- */
+  .week-grid { display: grid; grid-template-columns: repeat(7, minmax(150px, 1fr)); gap: 10px; }
+  .day-col { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; min-height: 120px; }
+  .day-col.today { border-color: var(--accent); }
+  .day-col > .day-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 7px; }
+  .day-col .dow { font: 700 11.5px var(--sans); text-transform: uppercase; letter-spacing: .05em; }
+  .day-col .dnum { font-size: 12px; color: var(--text-dim); }
+  .shift-card {
+    background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent);
+    border-radius: 8px; padding: 7px 8px; margin-bottom: 7px; cursor: pointer;
+  }
+  .shift-card:hover { border-color: var(--border-strong); border-left-color: var(--accent); }
+  .shift-card.full { border-left-color: var(--ok); }
+  .shift-card.under { border-left-color: var(--warn); }
+  .shift-card.empty-slots { border-left-color: var(--bad); }
+  .shift-card .time { font: 700 12.5px var(--mono); }
+  .shift-card .role { font-size: 12px; color: var(--text-dim); }
+  .shift-card .who { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 3px; }
+  .shift-card .who span { font-size: 11.5px; background: var(--surface-2); border-radius: 5px; padding: 1px 5px; }
+  .shift-card .fill { font: 700 11px var(--mono); float: right; }
+
+  /* ---------- drawer ---------- */
+  .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 50; display: none; }
+  .backdrop.open { display: block; }
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(460px, 100%);
+    background: var(--surface); border-left: 1px solid var(--border);
+    z-index: 60; transform: translateX(100%); transition: transform .18s ease;
+    display: flex; flex-direction: column;
+  }
+  .drawer.open { transform: none; }
+  .drawer > header { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .drawer > header .spacer { flex: 1; }
+  .drawer > .body { padding: 16px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 14px; }
+  .drawer > footer { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+  .drawer > footer .spacer { flex: 1; }
+
+  .cand { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; }
+  .cand .name { font-weight: 600; font-size: 13.5px; }
+  .cand .spacer { flex: 1; }
+  .cand.blocked { opacity: .62; }
+
+  .bar { height: 7px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--accent); }
+  .bar > i.ok { background: var(--ok); }
+  .bar > i.warn { background: var(--warn); }
+
+  .toast {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--text); color: var(--bg); padding: 9px 16px; border-radius: 8px;
+    font-size: 13.5px; font-weight: 600; opacity: 0; pointer-events: none; transition: all .2s; z-index: 90;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .day-toggle { display: flex; gap: 3px; flex-wrap: wrap; }
+  .day-toggle label { cursor: pointer; }
+  .day-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .day-toggle span {
+    display: inline-block; width: 34px; text-align: center; padding: 4px 0;
+    border: 1px solid var(--border-strong); border-radius: 6px;
+    font: 600 11.5px var(--sans); color: var(--text-dim); user-select: none;
+  }
+  .day-toggle input:checked + span { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .day-toggle input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  @media print {
+    header.app, nav.tabs, .no-print, .drawer, .backdrop { display: none !important; }
+    body { background: #fff; }
+    .card { box-shadow: none; border-color: #ccc; break-inside: avoid; }
+    .week-grid { grid-template-columns: repeat(7, 1fr); }
+  }
+</style>
+</head>
+<body>
+<header class="app">
+  <div class="brand"><span class="dot"></span><h1>Shift Scheduler</h1></div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="schedule" aria-selected="true">Schedule</button>
+    <button role="tab" data-tab="people" aria-selected="false">People</button>
+    <button role="tab" data-tab="shifts" aria-selected="false">Shifts</button>
+    <button role="tab" data-tab="reports" aria-selected="false">Reports</button>
+  </nav>
+  <div class="spacer"></div>
+  <button class="btn sm" id="themeBtn" title="Toggle light / dark">Theme</button>
+  <button class="btn sm" id="exportJsonBtn">Backup</button>
+  <button class="btn sm" id="importJsonBtn">Restore</button>
+  <input type="file" id="importFile" accept="application/json" hidden>
+</header>
+
+<main>
+
+  <!-- ============ SCHEDULE ============ -->
+  <section class="panel active" id="panel-schedule">
+    <div class="card">
+      <header>
+        <button class="btn sm" id="prevWeek">&larr;</button>
+        <button class="btn sm" id="thisWeek">Today</button>
+        <button class="btn sm" id="nextWeek">&rarr;</button>
+        <h2 id="weekLabel">&nbsp;</h2>
+        <div class="spacer"></div>
+        <label class="field" style="flex-direction:row;align-items:center;gap:6px">
+          Role
+          <select id="filterRole"><option value="">All</option></select>
+        </label>
+        <label class="field" style="flex-direction:row;align-items:center;gap:6px">
+          Person
+          <select id="filterPerson"><option value="">All</option></select>
+        </label>
+        <button class="btn sm" id="autoFillBtn" title="Fill open slots automatically">Auto-fill week</button>
+        <button class="btn sm" id="clearWeekBtn">Clear assignments</button>
+        <button class="btn sm" id="printBtn">Print</button>
+        <button class="btn sm" id="csvBtn">CSV</button>
+      </header>
+      <div id="weekStats" class="row small muted" style="margin-bottom:12px"></div>
+      <div class="week-grid" id="weekGrid"></div>
+    </div>
+
+    <div class="card">
+      <header><h2>Issues this week</h2><div class="spacer"></div><span class="small muted">Conflicts and gaps are recalculated live</span></header>
+      <div id="issueList"></div>
+    </div>
+  </section>
+
+  <!-- ============ PEOPLE ============ -->
+  <section class="panel" id="panel-people">
+    <div class="grid-2">
+      <div class="card">
+        <header><h2 id="personFormTitle">Add person</h2><div class="spacer"></div>
+          <button class="btn sm" id="personResetBtn" hidden>Cancel edit</button>
+        </header>
+        <form id="personForm" style="display:flex;flex-direction:column;gap:12px">
+          <input type="hidden" id="personId">
+          <div class="row">
+            <label class="field" style="flex:2 1 180px">Name
+              <input type="text" id="personName" required placeholder="Jordan Reyes">
+            </label>
+            <label class="field" style="flex:1 1 130px">Type
+              <select id="personType">
+                <option value="volunteer">Volunteer</option>
+                <option value="staff">Staff</option>
+              </select>
+            </label>
+          </div>
+          <div class="row">
+            <label class="field" style="flex:2 1 200px">Contact
+              <input type="text" id="personContact" placeholder="email or phone">
+            </label>
+            <label class="field" style="flex:1 1 120px">Max shifts / week
+              <input type="number" id="personMax" min="0" max="21" value="3">
+            </label>
+          </div>
+          <label class="field">Roles they can cover
+            <input type="text" id="personRoles" placeholder="Front desk, Kitchen (comma separated)">
+            <span class="small muted" id="roleHint"></span>
+          </label>
+          <div>
+            <label class="field" style="margin-bottom:6px">Available days</label>
+            <div class="day-toggle" id="personDays"></div>
+          </div>
+          <div class="row">
+            <label class="field" style="flex:1 1 120px">Not before
+              <input type="time" id="personFrom" value="00:00">
+            </label>
+            <label class="field" style="flex:1 1 120px">Not after
+              <input type="time" id="personTo" value="23:59">
+            </label>
+          </div>
+          <label class="field">Notes
+            <textarea id="personNotes" placeholder="Certifications, preferences, anything worth remembering"></textarea>
+          </label>
+          <div class="row">
+            <button class="btn primary" type="submit" id="personSaveBtn">Add person</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <header><h2>Roster</h2><div class="spacer"></div>
+          <input type="text" id="peopleSearch" placeholder="Search roster" style="max-width:180px">
+        </header>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>Roles</th><th>Days</th><th>Load</th><th></th></tr></thead>
+            <tbody id="peopleBody"></tbody>
+          </table>
+        </div>
+        <div id="peopleEmpty" class="empty" hidden>No one on the roster yet.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SHIFTS ============ -->
+  <section class="panel" id="panel-shifts">
+    <div class="grid-2">
+      <div class="card">
+        <header><h2 id="shiftFormTitle">Add shift</h2><div class="spacer"></div>
+          <button class="btn sm" id="shiftResetBtn" hidden>Cancel edit</button>
+        </header>
+        <form id="shiftForm" style="display:flex;flex-direction:column;gap:12px">
+          <input type="hidden" id="shiftId">
+          <div class="row">
+            <label class="field" style="flex:2 1 160px">Role needed
+              <input type="text" id="shiftRole" required placeholder="Front desk" list="roleList">
+              <datalist id="roleList"></datalist>
+            </label>
+            <label class="field" style="flex:1 1 110px">People needed
+              <input type="number" id="shiftNeeded" min="1" max="50" value="2" required>
+            </label>
+          </div>
+          <div class="row">
+            <label class="field" style="flex:1 1 150px">Date
+              <input type="date" id="shiftDate" required>
+            </label>
+            <label class="field" style="flex:1 1 110px">Start
+              <input type="time" id="shiftStart" value="09:00" required>
+            </label>
+            <label class="field" style="flex:1 1 110px">End
+              <input type="time" id="shiftEnd" value="13:00" required>
+            </label>
+          </div>
+          <label class="field">Location
+            <input type="text" id="shiftLocation" placeholder="Main hall">
+          </label>
+          <label class="field">Notes
+            <textarea id="shiftNotes" placeholder="What happens on this shift"></textarea>
+          </label>
+          <div class="row">
+            <button class="btn primary" type="submit" id="shiftSaveBtn">Add shift</button>
+            <button class="btn" type="button" id="repeatBtn">Add &amp; repeat weekly&hellip;</button>
+            <label class="field" style="flex-direction:row;align-items:center;gap:6px">for
+              <input type="number" id="repeatWeeks" min="1" max="52" value="4" style="width:64px"> weeks
+            </label>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <header><h2>All shifts</h2><div class="spacer"></div>
+          <label class="field" style="flex-direction:row;align-items:center;gap:6px">From
+            <input type="date" id="shiftListFrom">
+          </label>
+          <button class="btn sm danger" id="deletePastBtn">Delete past</button>
+        </header>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Time</th><th>Role</th><th>Filled</th><th></th></tr></thead>
+            <tbody id="shiftsBody"></tbody>
+          </table>
+        </div>
+        <div id="shiftsEmpty" class="empty" hidden>No shifts yet.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ REPORTS ============ -->
+  <section class="panel" id="panel-reports">
+    <div class="card">
+      <header><h2>Coverage &amp; workload</h2><div class="spacer"></div>
+        <label class="field" style="flex-direction:row;align-items:center;gap:6px">From
+          <input type="date" id="repFrom">
+        </label>
+        <label class="field" style="flex-direction:row;align-items:center;gap:6px">To
+          <input type="date" id="repTo">
+        </label>
+        <button class="btn sm" id="repCsvBtn">Export CSV</button>
+      </header>
+      <div id="repSummary" class="row" style="gap:20px;margin-bottom:16px"></div>
+      <div class="grid-2">
+        <div>
+          <h3 style="margin-bottom:8px">Hours per person</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Person</th><th>Shifts</th><th>Hours</th><th style="width:34%">Share</th></tr></thead>
+              <tbody id="repPeopleBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div>
+          <h3 style="margin-bottom:8px">Coverage by role</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Role</th><th>Slots</th><th>Filled</th><th style="width:34%">Coverage</th></tr></thead>
+              <tbody id="repRolesBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div class="backdrop" id="backdrop"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <header>
+    <h2 id="drawerTitle">Shift</h2>
+    <div class="spacer"></div>
+    <button class="icon-btn" id="drawerClose" title="Close">&#10005;</button>
+  </header>
+  <div class="body" id="drawerBody"></div>
+  <footer>
+    <button class="btn" id="drawerEdit">Edit shift</button>
+    <div class="spacer"></div>
+    <button class="btn danger" id="drawerDelete">Delete</button>
+  </footer>
+</aside>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+"use strict";
+
+/* =========================================================
+   Storage
+   ========================================================= */
+const KEY = "shift-scheduler.v1";
+const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const DOW_LONG = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+
+let db;
+
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.people) && Array.isArray(parsed.shifts)) return parsed;
+    }
+  } catch (e) { console.warn("Could not read saved data:", e); }
+  return seed();
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(db)); }
+  catch (e) { toast("Could not save — storage may be full"); }
+}
+const uid = () => Math.random().toString(36).slice(2, 10);
+
+/* =========================================================
+   Date + time helpers  (all dates are local, "YYYY-MM-DD")
+   ========================================================= */
+function iso(d) {
+  const p = n => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+}
+function fromIso(s) { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); }
+function addDays(s, n) { const d = fromIso(s); d.setDate(d.getDate() + n); return iso(d); }
+function mondayOf(s) { const d = fromIso(s); const off = (d.getDay() + 6) % 7; d.setDate(d.getDate() - off); return iso(d); }
+function dowOf(s) { return fromIso(s).getDay(); }
+function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
+function toHM(min) { const p = n => String(n).padStart(2, "0"); return p(Math.floor(min / 60) % 24) + ":" + p(min % 60); }
+function shiftRange(sh) {
+  const a = toMin(sh.start);
+  let b = toMin(sh.end);
+  if (b <= a) b += 1440;            // overnight shift
+  return [a, b];
+}
+function hours(sh) { const [a, b] = shiftRange(sh); return (b - a) / 60; }
+function pretty(t) {
+  const [h, m] = t.split(":").map(Number);
+  const ampm = h < 12 ? "am" : "pm";
+  const hh = h % 12 === 0 ? 12 : h % 12;
+  return m ? `${hh}:${String(m).padStart(2, "0")}${ampm}` : `${hh}${ampm}`;
+}
+function prettyDate(s) {
+  const d = fromIso(s);
+  return `${DOW[d.getDay()]} ${d.getDate()} ${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getMonth()]}`;
+}
+const TODAY = iso(new Date());
+
+/* =========================================================
+   Domain queries
+   ========================================================= */
+const personById = id => db.people.find(p => p.id === id);
+const shiftById = id => db.shifts.find(s => s.id === id);
+const sortedShifts = () => [...db.shifts].sort((a, b) =>
+  a.date === b.date ? toMin(a.start) - toMin(b.start) : a.date < b.date ? -1 : 1);
+
+function allRoles() {
+  const set = new Set();
+  db.shifts.forEach(s => s.role && set.add(s.role));
+  db.people.forEach(p => p.roles.forEach(r => set.add(r)));
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+function weekDates(monday) { return Array.from({ length: 7 }, (_, i) => addDays(monday, i)); }
+function shiftsOn(date) {
+  return db.shifts.filter(s => s.date === date).sort((a, b) => toMin(a.start) - toMin(b.start));
+}
+function shiftsBetween(from, to) {
+  return sortedShifts().filter(s => s.date >= from && s.date <= to);
+}
+function weekOf(date) { const m = mondayOf(date); return [m, addDays(m, 6)]; }
+function assignedCountInWeek(personId, date) {
+  const [from, to] = weekOf(date);
+  return db.shifts.filter(s => s.date >= from && s.date <= to && s.assigned.includes(personId)).length;
+}
+function overlaps(a, b) {
+  if (a.date !== b.date) return false;
+  const [s1, e1] = shiftRange(a), [s2, e2] = shiftRange(b);
+  return s1 < e2 && s2 < e1;
+}
+
+/* ---- Can this person take this shift?  Returns blocking + soft reasons ---- */
+function evaluate(person, shift) {
+  const hard = [], soft = [];
+  if (person.roles.length && !person.roles.includes(shift.role)) hard.push(`Not trained for ${shift.role}`);
+  if (!person.days.includes(dowOf(shift.date))) hard.push(`Not available ${DOW_LONG[dowOf(shift.date)]}s`);
+
+  const [a, b] = shiftRange(shift);
+  const from = toMin(person.from || "00:00");
+  const to = toMin(person.to || "23:59");
+  if (a < from) hard.push(`Starts before their ${pretty(person.from)} earliest`);
+  if (b > to && b <= 1440) hard.push(`Ends after their ${pretty(person.to)} latest`);
+  if (b > 1440 && to < 1439) hard.push("Overnight shift is outside their hours");
+
+  const clash = db.shifts.find(s => s.id !== shift.id && s.assigned.includes(person.id) && overlaps(s, shift));
+  if (clash) hard.push(`Already on ${clash.role} ${pretty(clash.start)}–${pretty(clash.end)}`);
+
+  const used = assignedCountInWeek(person.id, shift.date) + (shift.assigned.includes(person.id) ? 0 : 1);
+  if (person.max > 0 && used > person.max) soft.push(`Over their ${person.max}-shift weekly cap`);
+
+  return { hard, soft, ok: hard.length === 0 };
+}
+
+/* =========================================================
+   Auto-fill — greedy, fairness first
+   ========================================================= */
+function autoFill(dates, { respectCap = true } = {}) {
+  let placed = 0;
+  const targets = db.shifts
+    .filter(s => dates.includes(s.date) && s.assigned.length < s.needed)
+    .sort((a, b) => {
+      // Hardest to staff first: fewest eligible people, then earliest.
+      const ea = db.people.filter(p => evaluate(p, a).ok).length;
+      const eb = db.people.filter(p => evaluate(p, b).ok).length;
+      if (ea !== eb) return ea - eb;
+      return a.date === b.date ? toMin(a.start) - toMin(b.start) : a.date < b.date ? -1 : 1;
+    });
+
+  for (const shift of targets) {
+    while (shift.assigned.length < shift.needed) {
+      const pool = db.people
+        .filter(p => !shift.assigned.includes(p.id))
+        .map(p => ({ p, v: evaluate(p, shift) }))
+        .filter(x => x.v.ok && (!respectCap || x.v.soft.length === 0))
+        .sort((x, y) => {
+          const wx = assignedCountInWeek(x.p.id, shift.date);
+          const wy = assignedCountInWeek(y.p.id, shift.date);
+          if (wx !== wy) return wx - wy;                       // spread the load
+          // Keep flexible people (many roles, or "any role") free for harder shifts.
+          const rx = x.p.roles.length || 99, ry = y.p.roles.length || 99;
+          if (rx !== ry) return rx - ry;
+          return x.p.name.localeCompare(y.p.name);
+        });
+      if (!pool.length) break;
+      shift.assigned.push(pool[0].p.id);
+      placed++;
+    }
+  }
+  return placed;
+}
+
+/* =========================================================
+   Issue detection
+   ========================================================= */
+function issuesFor(dates) {
+  const out = [];
+  const list = db.shifts.filter(s => dates.includes(s.date))
+    .sort((a, b) => a.date === b.date ? toMin(a.start) - toMin(b.start) : a.date < b.date ? -1 : 1);
+
+  for (const s of list) {
+    const short = s.needed - s.assigned.length;
+    if (short > 0) {
+      const free = db.people.filter(p => !s.assigned.includes(p.id) && evaluate(p, s).ok);
+      const withinCap = free.filter(p => evaluate(p, s).soft.length === 0).length;
+      let detail;
+      if (withinCap) detail = `${withinCap} ${withinCap === 1 ? "person is" : "people are"} free — auto-fill can cover it`;
+      else if (free.length) detail = `${free.length} could cover it but ${free.length === 1 ? "is" : "are"} at their weekly cap`;
+      else detail = "nobody on the roster can cover this";
+      out.push({
+        kind: "gap",
+        level: withinCap ? "warn" : "bad",
+        text: `${prettyDate(s.date)} · ${s.role} ${pretty(s.start)}–${pretty(s.end)} needs ${short} more`,
+        detail,
+        shiftId: s.id
+      });
+    }
+    for (const pid of s.assigned) {
+      const p = personById(pid);
+      if (!p) continue;
+      const v = evaluate(p, s);
+      for (const r of v.hard) out.push({ kind: "conflict", level: "bad", text: `${p.name} on ${s.role} ${prettyDate(s.date)}`, detail: r, shiftId: s.id });
+      for (const r of v.soft) out.push({ kind: "over cap", level: "warn", text: `${p.name} on ${s.role} ${prettyDate(s.date)}`, detail: r, shiftId: s.id });
+    }
+  }
+  return out;
+}
+
+/* =========================================================
+   DOM helpers
+   ========================================================= */
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+function el(tag, props = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "class") n.className = v;
+    else if (k === "html") n.innerHTML = v;
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else if (v === true) n.setAttribute(k, "");
+    else if (v !== false && v != null) n.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) if (kid != null) n.append(kid.nodeType ? kid : document.createTextNode(kid));
+  return n;
+}
+let toastTimer;
+function toast(msg) {
+  const t = $("#toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2400);
+}
+
+/* =========================================================
+   State
+   ========================================================= */
+let viewMonday = mondayOf(TODAY);
+let openShiftId = null;
+let editingPerson = null;
+let editingShift = null;
+
+/* =========================================================
+   Render — week schedule
+   ========================================================= */
+function renderWeek() {
+  const dates = weekDates(viewMonday);
+  const roleF = $("#filterRole").value;
+  const personF = $("#filterPerson").value;
+
+  const a = fromIso(dates[0]), b = fromIso(dates[6]);
+  const mon = d => d.toLocaleDateString(undefined, { month: "short" });
+  $("#weekLabel").textContent =
+    `${mon(a)} ${a.getDate()} – ${mon(b)} ${b.getDate()}, ${b.getFullYear()}`;
+
+  const grid = $("#weekGrid");
+  grid.textContent = "";
+
+  let slots = 0, filled = 0;
+  for (const date of dates) {
+    const col = el("div", { class: "day-col" + (date === TODAY ? " today" : "") });
+    const d = fromIso(date);
+    col.append(el("div", { class: "day-head" },
+      el("span", { class: "dow" }, DOW[d.getDay()]),
+      el("span", { class: "dnum" }, `${d.getDate()}/${d.getMonth() + 1}`)
+    ));
+
+    const list = shiftsOn(date).filter(s =>
+      (!roleF || s.role === roleF) && (!personF || s.assigned.includes(personF)));
+
+    for (const s of shiftsOn(date)) { slots += s.needed; filled += Math.min(s.assigned.length, s.needed); }
+
+    if (!list.length) {
+      col.append(el("div", { class: "small muted", style: "padding:4px 2px" }, "—"));
+    }
+    for (const s of list) {
+      const short = s.needed - s.assigned.length;
+      const cls = short <= 0 ? "full" : s.assigned.length === 0 ? "empty-slots" : "under";
+      const names = s.assigned.map(id => (personById(id) || {}).name).filter(Boolean);
+      col.append(el("div", { class: "shift-card " + cls, onclick: () => openShift(s.id) },
+        el("span", { class: "fill " + (short <= 0 ? "" : "") }, `${s.assigned.length}/${s.needed}`),
+        el("div", { class: "time" }, `${pretty(s.start)}–${pretty(s.end)}`),
+        el("div", { class: "role" }, s.role + (s.location ? ` · ${s.location}` : "")),
+        names.length ? el("div", { class: "who" }, names.map(n => el("span", {}, n))) : null
+      ));
+    }
+    grid.append(col);
+  }
+
+  const pct = slots ? Math.round((filled / slots) * 100) : 0;
+  $("#weekStats").textContent = "";
+  $("#weekStats").append(
+    el("span", {}, el("strong", {}, String(db.shifts.filter(s => dates.includes(s.date)).length)), " shifts"),
+    el("span", {}, el("strong", {}, `${filled}/${slots}`), " slots filled"),
+    el("span", { class: pct === 100 ? "chip ok" : pct >= 70 ? "chip warn" : "chip bad" }, `${pct}% covered`)
+  );
+
+  renderIssues(dates);
+}
+
+function renderIssues(dates) {
+  const box = $("#issueList");
+  box.textContent = "";
+  const issues = issuesFor(dates);
+  if (!issues.length) {
+    box.append(el("div", { class: "empty" }, "Nothing to flag — every shift is staffed and no conflicts."));
+    return;
+  }
+  for (const i of issues) {
+    box.append(el("div", {
+      class: "row small",
+      style: "align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid var(--border);cursor:pointer",
+      onclick: () => openShift(i.shiftId)
+    },
+      el("span", { class: "chip " + i.level }, i.kind),
+      el("span", {}, el("strong", {}, i.text)),
+      el("span", { class: "muted" }, i.detail)
+    ));
+  }
+}
+
+/* =========================================================
+   Render — shift drawer
+   ========================================================= */
+function openShift(id) {
+  openShiftId = id;
+  const s = shiftById(id);
+  if (!s) return;
+  $("#drawerTitle").textContent = `${s.role} · ${prettyDate(s.date)}`;
+  const body = $("#drawerBody");
+  body.textContent = "";
+
+  const short = s.needed - s.assigned.length;
+  body.append(el("div", { class: "row", style: "gap:8px" },
+    el("span", { class: "chip" }, `${pretty(s.start)}–${pretty(s.end)}`),
+    el("span", { class: "chip" }, `${hours(s)}h`),
+    s.location ? el("span", { class: "chip" }, s.location) : null,
+    el("span", { class: "chip " + (short <= 0 ? "ok" : s.assigned.length ? "warn" : "bad") },
+      short <= 0 ? "fully staffed" : `${short} slot${short > 1 ? "s" : ""} open`)
+  ));
+  if (s.notes) body.append(el("div", { class: "small muted" }, s.notes));
+
+  body.append(el("h3", {}, `Assigned (${s.assigned.length} of ${s.needed})`));
+  if (!s.assigned.length) body.append(el("div", { class: "small muted" }, "Nobody yet."));
+  for (const pid of s.assigned) {
+    const p = personById(pid);
+    if (!p) continue;
+    const v = evaluate(p, s);
+    body.append(el("div", { class: "cand" },
+      el("div", {},
+        el("div", { class: "name" }, p.name),
+        el("div", { class: "small muted" },
+          [...v.hard, ...v.soft].join(" · ") || `${p.type} · ${p.contact || "no contact"}`)
+      ),
+      el("div", { class: "spacer" }),
+      v.hard.length ? el("span", { class: "chip bad" }, "conflict") : v.soft.length ? el("span", { class: "chip warn" }, "over cap") : null,
+      el("button", { class: "btn sm", onclick: () => { unassign(s.id, pid); } }, "Remove")
+    ));
+  }
+
+  body.append(el("h3", {}, "Available to add"));
+  const cands = db.people
+    .filter(p => !s.assigned.includes(p.id))
+    .map(p => ({ p, v: evaluate(p, s), load: assignedCountInWeek(p.id, s.date) }))
+    .sort((a, b) => (a.v.ok === b.v.ok) ? (a.v.soft.length - b.v.soft.length) || (a.load - b.load) || a.p.name.localeCompare(b.p.name) : a.v.ok ? -1 : 1);
+
+  if (!cands.length) body.append(el("div", { class: "small muted" }, "Everyone is already on this shift."));
+  for (const c of cands) {
+    body.append(el("div", { class: "cand" + (c.v.ok ? "" : " blocked") },
+      el("div", {},
+        el("div", { class: "name" }, c.p.name),
+        el("div", { class: "small muted" },
+          c.v.hard[0] || c.v.soft[0] || `${c.load} shift${c.load === 1 ? "" : "s"} this week`)
+      ),
+      el("div", { class: "spacer" }),
+      el("button", {
+        class: "btn sm" + (c.v.ok && !c.v.soft.length ? " primary" : ""),
+        onclick: () => assign(s.id, c.p.id, c.v)
+      }, c.v.ok ? "Assign" : "Assign anyway")
+    ));
+  }
+
+  $("#drawer").classList.add("open");
+  $("#drawer").setAttribute("aria-hidden", "false");
+  $("#backdrop").classList.add("open");
+}
+function closeDrawer() {
+  openShiftId = null;
+  $("#drawer").classList.remove("open");
+  $("#drawer").setAttribute("aria-hidden", "true");
+  $("#backdrop").classList.remove("open");
+}
+function assign(shiftId, personId, v) {
+  const s = shiftById(shiftId);
+  if (!s || s.assigned.includes(personId)) return;
+  if (v && v.hard.length && !confirm(`${personById(personId).name}: ${v.hard.join("; ")}.\n\nAssign anyway?`)) return;
+  s.assigned.push(personId);
+  save(); renderAll(); openShift(shiftId);
+}
+function unassign(shiftId, personId) {
+  const s = shiftById(shiftId);
+  s.assigned = s.assigned.filter(x => x !== personId);
+  save(); renderAll(); openShift(shiftId);
+}
+
+/* =========================================================
+   Render — people
+   ========================================================= */
+function renderPeople() {
+  const q = ($("#peopleSearch").value || "").toLowerCase();
+  const body = $("#peopleBody");
+  body.textContent = "";
+  const list = db.people
+    .filter(p => !q || p.name.toLowerCase().includes(q) || p.roles.join(" ").toLowerCase().includes(q))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  $("#peopleEmpty").hidden = list.length > 0;
+
+  for (const p of list) {
+    const load = assignedCountInWeek(p.id, viewMonday);
+    const capPct = p.max > 0 ? Math.min(100, Math.round((load / p.max) * 100)) : 0;
+    body.append(el("tr", {},
+      el("td", {},
+        el("div", { style: "font-weight:600" }, p.name),
+        el("div", { class: "small muted" }, `${p.type}${p.contact ? " · " + p.contact : ""}`)
+      ),
+      el("td", {}, p.roles.length
+        ? p.roles.map(r => el("span", { class: "chip role", style: "margin:1px 2px 1px 0" }, r))
+        : el("span", { class: "small muted" }, "any role")),
+      el("td", { class: "small" },
+        el("div", {}, p.days.length === 7 ? "every day" : p.days.map(d => DOW[d]).join(" ")),
+        el("div", { class: "muted mono" }, `${p.from}–${p.to}`)
+      ),
+      el("td", { style: "min-width:110px" },
+        el("div", { class: "small" }, p.max > 0 ? `${load} / ${p.max} this week` : `${load} this week`),
+        p.max > 0 ? el("div", { class: "bar" }, el("i", { class: capPct >= 100 ? "warn" : "ok", style: `width:${capPct}%` })) : null
+      ),
+      el("td", { style: "white-space:nowrap;text-align:right" },
+        el("button", { class: "btn sm", onclick: () => editPerson(p.id) }, "Edit"),
+        " ",
+        el("button", { class: "btn sm danger", onclick: () => deletePerson(p.id) }, "Delete")
+      )
+    ));
+  }
+}
+
+function personFormFill(p) {
+  $("#personId").value = p ? p.id : "";
+  $("#personName").value = p ? p.name : "";
+  $("#personType").value = p ? p.type : "volunteer";
+  $("#personContact").value = p ? p.contact : "";
+  $("#personMax").value = p ? p.max : 3;
+  $("#personRoles").value = p ? p.roles.join(", ") : "";
+  $("#personFrom").value = p ? p.from : "00:00";
+  $("#personTo").value = p ? p.to : "23:59";
+  $("#personNotes").value = p ? p.notes : "";
+  const days = p ? p.days : [1, 2, 3, 4, 5];
+  $$("#personDays input").forEach(i => { i.checked = days.includes(Number(i.value)); });
+  $("#personFormTitle").textContent = p ? `Edit ${p.name}` : "Add person";
+  $("#personSaveBtn").textContent = p ? "Save changes" : "Add person";
+  $("#personResetBtn").hidden = !p;
+  editingPerson = p ? p.id : null;
+}
+function editPerson(id) {
+  personFormFill(personById(id));
+  switchTab("people");
+  $("#personName").focus();
+}
+function deletePerson(id) {
+  const p = personById(id);
+  const booked = db.shifts.filter(s => s.assigned.includes(id)).length;
+  if (!confirm(`Remove ${p.name}?${booked ? `\nThey are on ${booked} shift${booked > 1 ? "s" : ""}, which will be left short.` : ""}`)) return;
+  db.people = db.people.filter(x => x.id !== id);
+  db.shifts.forEach(s => { s.assigned = s.assigned.filter(x => x !== id); });
+  if (editingPerson === id) personFormFill(null);
+  save(); renderAll(); toast(`${p.name} removed`);
+}
+
+/* =========================================================
+   Render — shifts table
+   ========================================================= */
+function renderShifts() {
+  const from = $("#shiftListFrom").value || "0000-01-01";
+  const body = $("#shiftsBody");
+  body.textContent = "";
+  const list = sortedShifts().filter(s => s.date >= from);
+  $("#shiftsEmpty").hidden = list.length > 0;
+
+  for (const s of list) {
+    const short = s.needed - s.assigned.length;
+    body.append(el("tr", {},
+      el("td", { class: "small" },
+        el("div", { style: "font-weight:600" }, prettyDate(s.date)),
+        el("div", { class: "muted mono" }, s.date)
+      ),
+      el("td", { class: "small mono" }, `${s.start}–${s.end}`),
+      el("td", {},
+        el("span", { class: "chip role" }, s.role),
+        s.location ? el("div", { class: "small muted" }, s.location) : null
+      ),
+      el("td", {},
+        el("span", { class: "chip " + (short <= 0 ? "ok" : s.assigned.length ? "warn" : "bad") }, `${s.assigned.length}/${s.needed}`),
+        el("div", { class: "small muted" }, s.assigned.map(id => (personById(id) || {}).name).filter(Boolean).join(", "))
+      ),
+      el("td", { style: "white-space:nowrap;text-align:right" },
+        el("button", { class: "btn sm", onclick: () => openShift(s.id) }, "Staff"),
+        " ",
+        el("button", { class: "btn sm", onclick: () => editShift(s.id) }, "Edit"),
+        " ",
+        el("button", { class: "btn sm danger", onclick: () => deleteShift(s.id) }, "Delete")
+      )
+    ));
+  }
+}
+function shiftFormFill(s) {
+  $("#shiftId").value = s ? s.id : "";
+  $("#shiftRole").value = s ? s.role : "";
+  $("#shiftNeeded").value = s ? s.needed : 2;
+  $("#shiftDate").value = s ? s.date : (viewMonday > TODAY ? viewMonday : TODAY);
+  $("#shiftStart").value = s ? s.start : "09:00";
+  $("#shiftEnd").value = s ? s.end : "13:00";
+  $("#shiftLocation").value = s ? s.location : "";
+  $("#shiftNotes").value = s ? s.notes : "";
+  $("#shiftFormTitle").textContent = s ? "Edit shift" : "Add shift";
+  $("#shiftSaveBtn").textContent = s ? "Save changes" : "Add shift";
+  $("#shiftResetBtn").hidden = !s;
+  $("#repeatBtn").hidden = !!s;
+  editingShift = s ? s.id : null;
+}
+function editShift(id) {
+  shiftFormFill(shiftById(id));
+  closeDrawer();
+  switchTab("shifts");
+  $("#shiftRole").focus();
+}
+function deleteShift(id) {
+  const s = shiftById(id);
+  if (s.assigned.length && !confirm(`Delete this ${s.role} shift? ${s.assigned.length} assignment(s) will be lost.`)) return;
+  db.shifts = db.shifts.filter(x => x.id !== id);
+  if (editingShift === id) shiftFormFill(null);
+  if (openShiftId === id) closeDrawer();
+  save(); renderAll(); toast("Shift deleted");
+}
+function readShiftForm() {
+  return {
+    role: $("#shiftRole").value.trim(),
+    needed: Math.max(1, Number($("#shiftNeeded").value) || 1),
+    date: $("#shiftDate").value,
+    start: $("#shiftStart").value,
+    end: $("#shiftEnd").value,
+    location: $("#shiftLocation").value.trim(),
+    notes: $("#shiftNotes").value.trim()
+  };
+}
+
+/* =========================================================
+   Render — reports
+   ========================================================= */
+function renderReports() {
+  const from = $("#repFrom").value || viewMonday;
+  const to = $("#repTo").value || addDays(viewMonday, 6);
+  const list = shiftsBetween(from, to);
+
+  let slots = 0, filled = 0, totalHours = 0;
+  const perPerson = new Map();
+  const perRole = new Map();
+
+  for (const s of list) {
+    slots += s.needed;
+    filled += Math.min(s.assigned.length, s.needed);
+    const r = perRole.get(s.role) || { slots: 0, filled: 0 };
+    r.slots += s.needed; r.filled += Math.min(s.assigned.length, s.needed);
+    perRole.set(s.role, r);
+    for (const pid of s.assigned) {
+      const v = perPerson.get(pid) || { shifts: 0, hours: 0 };
+      v.shifts++; v.hours += hours(s);
+      perPerson.set(pid, v);
+      totalHours += hours(s);
+    }
+  }
+
+  const pct = slots ? Math.round(filled / slots * 100) : 0;
+  const stat = (label, val, cls) => el("div", {},
+    el("div", { class: "small muted" }, label),
+    el("div", { style: "font-size:1.5rem;font-weight:700", class: cls || "" }, val));
+  $("#repSummary").textContent = "";
+  $("#repSummary").append(
+    stat("Shifts", String(list.length)),
+    stat("Slots filled", `${filled}/${slots}`),
+    stat("Coverage", pct + "%"),
+    stat("Volunteer hours", totalHours.toFixed(1)),
+    stat("People used", String(perPerson.size))
+  );
+
+  const pb = $("#repPeopleBody"); pb.textContent = "";
+  const maxH = Math.max(1, ...[...perPerson.values()].map(v => v.hours));
+  const rows = db.people.map(p => ({ p, v: perPerson.get(p.id) || { shifts: 0, hours: 0 } }))
+    .sort((a, b) => b.v.hours - a.v.hours || a.p.name.localeCompare(b.p.name));
+  if (!rows.length) pb.append(el("tr", {}, el("td", { colspan: "4", class: "empty" }, "No people on the roster.")));
+  for (const { p, v } of rows) {
+    pb.append(el("tr", {},
+      el("td", {}, p.name, v.shifts === 0 ? el("span", { class: "small muted" }, " — unused") : null),
+      el("td", {}, String(v.shifts)),
+      el("td", {}, v.hours.toFixed(1)),
+      el("td", {}, el("div", { class: "bar" }, el("i", { style: `width:${(v.hours / maxH) * 100}%` })))
+    ));
+  }
+
+  const rb = $("#repRolesBody"); rb.textContent = "";
+  const roleRows = [...perRole.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  if (!roleRows.length) rb.append(el("tr", {}, el("td", { colspan: "4", class: "empty" }, "No shifts in this range.")));
+  for (const [role, r] of roleRows) {
+    const rp = r.slots ? Math.round(r.filled / r.slots * 100) : 0;
+    rb.append(el("tr", {},
+      el("td", {}, el("span", { class: "chip role" }, role)),
+      el("td", {}, String(r.slots)),
+      el("td", {}, String(r.filled)),
+      el("td", {}, el("div", { class: "bar" }, el("i", { class: rp === 100 ? "ok" : "warn", style: `width:${rp}%` })), el("span", { class: "small muted" }, rp + "%"))
+    ));
+  }
+}
+
+/* =========================================================
+   Export
+   ========================================================= */
+function csvEscape(v) {
+  const s = String(v ?? "");
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function download(name, text, type = "text/csv") {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = el("a", { href: url, download: name });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function scheduleCsv(list) {
+  const rows = [["Date", "Day", "Start", "End", "Hours", "Role", "Location", "Needed", "Assigned", "People", "Notes"]];
+  for (const s of list) {
+    rows.push([
+      s.date, DOW_LONG[dowOf(s.date)], s.start, s.end, hours(s), s.role, s.location,
+      s.needed, s.assigned.length,
+      s.assigned.map(id => (personById(id) || {}).name).filter(Boolean).join("; "),
+      s.notes
+    ]);
+  }
+  return rows.map(r => r.map(csvEscape).join(",")).join("\n");
+}
+
+/* =========================================================
+   Wiring
+   ========================================================= */
+function switchTab(name) {
+  $$("nav.tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === name)));
+  $$(".panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + name));
+  if (name === "reports") renderReports();
+}
+
+function refreshSelectors() {
+  const roles = allRoles();
+  const keepRole = $("#filterRole").value;
+  $("#filterRole").textContent = "";
+  $("#filterRole").append(el("option", { value: "" }, "All"), ...roles.map(r => el("option", { value: r }, r)));
+  $("#filterRole").value = roles.includes(keepRole) ? keepRole : "";
+
+  const keepPerson = $("#filterPerson").value;
+  $("#filterPerson").textContent = "";
+  $("#filterPerson").append(el("option", { value: "" }, "All"),
+    ...[...db.people].sort((a, b) => a.name.localeCompare(b.name)).map(p => el("option", { value: p.id }, p.name)));
+  $("#filterPerson").value = db.people.some(p => p.id === keepPerson) ? keepPerson : "";
+
+  $("#roleList").textContent = "";
+  $("#roleList").append(...roles.map(r => el("option", { value: r })));
+  $("#roleHint").textContent = roles.length ? "Already in use: " + roles.join(", ") : "Leave blank if they can cover any role.";
+}
+
+function renderAll() {
+  refreshSelectors();
+  renderWeek();
+  renderPeople();
+  renderShifts();
+  if ($("#panel-reports").classList.contains("active")) renderReports();
+}
+
+function wire() {
+  $$("nav.tabs button").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
+
+  // week nav
+  $("#prevWeek").onclick = () => { viewMonday = addDays(viewMonday, -7); renderAll(); };
+  $("#nextWeek").onclick = () => { viewMonday = addDays(viewMonday, 7); renderAll(); };
+  $("#thisWeek").onclick = () => { viewMonday = mondayOf(TODAY); renderAll(); };
+  $("#filterRole").onchange = renderWeek;
+  $("#filterPerson").onchange = renderWeek;
+
+  $("#autoFillBtn").onclick = () => {
+    const dates = weekDates(viewMonday);
+    let n = autoFill(dates);
+    const openSlots = () => db.shifts
+      .filter(s => dates.includes(s.date))
+      .reduce((acc, s) => acc + Math.max(0, s.needed - s.assigned.length), 0);
+    let left = openSlots();
+    if (left) {
+      // How many of the open slots could be covered only by going over someone's weekly cap?
+      let rescuable = 0;
+      for (const s of db.shifts.filter(s => dates.includes(s.date) && s.assigned.length < s.needed)) {
+        const spare = db.people.filter(p => !s.assigned.includes(p.id) && evaluate(p, s).ok).length;
+        rescuable += Math.min(spare, s.needed - s.assigned.length);
+      }
+      if (rescuable && confirm(
+        `${n ? `Filled ${n} slot${n > 1 ? "s" : ""}. ` : ""}${left} slot${left > 1 ? "s are" : " is"} still open.\n\n` +
+        `${rescuable} of ${left > 1 ? "them" : "it"} could be covered by people who are already at their weekly cap. ` +
+        `Assign them anyway?`)) {
+        n += autoFill(dates, { respectCap: false });
+        left = openSlots();
+      }
+    }
+    save(); renderAll();
+    toast(n ? `Filled ${n} slot${n > 1 ? "s" : ""}${left ? ` · ${left} still open` : ""}` : "Nothing could be filled automatically");
+  };
+  $("#clearWeekBtn").onclick = () => {
+    const dates = weekDates(viewMonday);
+    const n = db.shifts.filter(s => dates.includes(s.date) && s.assigned.length).length;
+    if (!n) return toast("No assignments this week");
+    if (!confirm(`Clear assignments on ${n} shift${n > 1 ? "s" : ""} this week?`)) return;
+    db.shifts.forEach(s => { if (dates.includes(s.date)) s.assigned = []; });
+    save(); renderAll(); toast("Week cleared");
+  };
+  $("#printBtn").onclick = () => window.print();
+  $("#csvBtn").onclick = () => {
+    const dates = weekDates(viewMonday);
+    download(`schedule-${viewMonday}.csv`, scheduleCsv(sortedShifts().filter(s => dates.includes(s.date))));
+  };
+
+  // drawer
+  $("#drawerClose").onclick = closeDrawer;
+  $("#backdrop").onclick = closeDrawer;
+  $("#drawerEdit").onclick = () => openShiftId && editShift(openShiftId);
+  $("#drawerDelete").onclick = () => openShiftId && deleteShift(openShiftId);
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
+
+  // people form
+  const dayBox = $("#personDays");
+  for (let i = 1; i <= 7; i++) {
+    const d = i % 7; // Mon..Sun
+    dayBox.append(el("label", {},
+      el("input", { type: "checkbox", value: String(d) }),
+      el("span", {}, DOW[d])
+    ));
+  }
+  $("#personForm").onsubmit = e => {
+    e.preventDefault();
+    const days = $$("#personDays input:checked").map(i => Number(i.value)).sort();
+    if (!days.length) return toast("Pick at least one available day");
+    const data = {
+      name: $("#personName").value.trim(),
+      type: $("#personType").value,
+      contact: $("#personContact").value.trim(),
+      max: Math.max(0, Number($("#personMax").value) || 0),
+      roles: $("#personRoles").value.split(",").map(s => s.trim()).filter(Boolean),
+      days,
+      from: $("#personFrom").value || "00:00",
+      to: $("#personTo").value || "23:59",
+      notes: $("#personNotes").value.trim()
+    };
+    if (editingPerson) {
+      Object.assign(personById(editingPerson), data);
+      toast("Saved");
+    } else {
+      db.people.push({ id: uid(), ...data });
+      toast(`${data.name} added`);
+    }
+    personFormFill(null);
+    save(); renderAll();
+  };
+  $("#personResetBtn").onclick = () => personFormFill(null);
+  $("#peopleSearch").oninput = renderPeople;
+
+  // shift form
+  $("#shiftForm").onsubmit = e => {
+    e.preventDefault();
+    const data = readShiftForm();
+    if (editingShift) {
+      Object.assign(shiftById(editingShift), data);
+      toast("Shift saved");
+    } else {
+      db.shifts.push({ id: uid(), assigned: [], ...data });
+      viewMonday = mondayOf(data.date);
+      toast("Shift added");
+    }
+    shiftFormFill(null);
+    save(); renderAll();
+  };
+  $("#shiftResetBtn").onclick = () => shiftFormFill(null);
+  $("#repeatBtn").onclick = () => {
+    const data = readShiftForm();
+    if (!data.role || !data.date) return toast("Role and date are required");
+    const weeks = Math.max(1, Number($("#repeatWeeks").value) || 1);
+    for (let i = 0; i < weeks; i++) {
+      db.shifts.push({ id: uid(), assigned: [], ...data, date: addDays(data.date, i * 7) });
+    }
+    viewMonday = mondayOf(data.date);
+    shiftFormFill(null);
+    save(); renderAll();
+    toast(`Added ${weeks} weekly shifts`);
+  };
+  $("#shiftListFrom").onchange = renderShifts;
+  $("#deletePastBtn").onclick = () => {
+    const gone = db.shifts.filter(s => s.date < TODAY).length;
+    if (!gone) return toast("Nothing in the past");
+    if (!confirm(`Delete ${gone} shift${gone > 1 ? "s" : ""} before today?`)) return;
+    db.shifts = db.shifts.filter(s => s.date >= TODAY);
+    save(); renderAll(); toast("Past shifts deleted");
+  };
+
+  // reports
+  $("#repFrom").onchange = renderReports;
+  $("#repTo").onchange = renderReports;
+  $("#repCsvBtn").onclick = () => {
+    const from = $("#repFrom").value || viewMonday;
+    const to = $("#repTo").value || addDays(viewMonday, 6);
+    download(`schedule-${from}-to-${to}.csv`, scheduleCsv(shiftsBetween(from, to)));
+  };
+
+  // backup / restore / theme
+  $("#exportJsonBtn").onclick = () =>
+    download(`shift-scheduler-backup-${TODAY}.json`, JSON.stringify(db, null, 2), "application/json");
+  $("#importJsonBtn").onclick = () => $("#importFile").click();
+  $("#importFile").onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const data = JSON.parse(r.result);
+        if (!Array.isArray(data.people) || !Array.isArray(data.shifts)) throw new Error("bad shape");
+        if (!confirm("Replace everything currently in the scheduler with this backup?")) return;
+        db = data;
+        save(); renderAll(); toast("Backup restored");
+      } catch (err) { toast("That file isn't a scheduler backup"); }
+      e.target.value = "";
+    };
+    r.readAsText(file);
+  };
+  $("#themeBtn").onclick = () => {
+    const cur = document.documentElement.getAttribute("data-theme");
+    const next = cur === "dark" ? "light" : cur === "light" ? "" : "dark";
+    if (next) document.documentElement.setAttribute("data-theme", next);
+    else document.documentElement.removeAttribute("data-theme");
+    try { localStorage.setItem(KEY + ".theme", next); } catch (e) {}
+  };
+}
+
+/* =========================================================
+   Demo data — only on a first, empty run
+   ========================================================= */
+function seed() {
+  const mon = mondayOf(iso(new Date()));
+  const P = (name, type, roles, days, max, from, to, contact) =>
+    ({ id: uid(), name, type, roles, days, max, from: from || "00:00", to: to || "23:59", contact: contact || "", notes: "" });
+
+  const people = [
+    P("Amara Osei", "staff", ["Front desk", "Supervisor"], [1, 2, 3, 4, 5], 5, "08:00", "18:00", "amara@example.org"),
+    P("Ben Carter", "volunteer", ["Kitchen"], [1, 3, 5], 2, "08:00", "15:00", "ben@example.org"),
+    P("Chen Wei", "volunteer", ["Front desk", "Kitchen"], [2, 4, 6], 3, "", "", "chen@example.org"),
+    P("Dara Nolan", "volunteer", ["Deliveries"], [1, 2, 3, 4, 5], 2, "12:00", "20:00", "dara@example.org"),
+    P("Esi Mensah", "staff", ["Supervisor", "Deliveries"], [0, 6], 4, "", "", "esi@example.org"),
+    P("Farid Haddad", "volunteer", [], [0, 5, 6], 2, "09:00", "17:00", "farid@example.org")
+  ];
+  const S = (dayOffset, start, end, role, needed, location) =>
+    ({ id: uid(), date: addDays(mon, dayOffset), start, end, role, needed, location, notes: "", assigned: [] });
+
+  const shifts = [];
+  for (const d of [0, 1, 2, 3, 4]) {
+    shifts.push(S(d, "09:00", "13:00", "Front desk", 2, "Reception"));
+    shifts.push(S(d, "11:00", "14:00", "Kitchen", 2, "Main kitchen"));
+    shifts.push(S(d, "13:00", "17:00", "Deliveries", 1, "Loading bay"));
+  }
+  shifts.push(S(5, "10:00", "16:00", "Front desk", 2, "Reception"));
+  shifts.push(S(5, "10:00", "16:00", "Supervisor", 1, "Reception"));
+  shifts.push(S(6, "10:00", "16:00", "Kitchen", 3, "Main kitchen"));
+
+  return { people, shifts, version: 1 };
+}
+
+/* =========================================================
+   Boot
+   ========================================================= */
+try {
+  const t = localStorage.getItem(KEY + ".theme");
+  if (t) document.documentElement.setAttribute("data-theme", t);
+} catch (e) {}
+
+db = load();
+wire();
+personFormFill(null);
+shiftFormFill(null);
+$("#shiftListFrom").value = TODAY;
+$("#repFrom").value = viewMonday;
+$("#repTo").value = addDays(viewMonday, 6);
+renderAll();
+save();
+
+})();
+</script>
+</body>
+</html>
