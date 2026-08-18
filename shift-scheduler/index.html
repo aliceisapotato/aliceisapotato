@@ -202,6 +202,14 @@
   .shift-card .who { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 3px; }
   .shift-card .who span { font-size: 11.5px; background: var(--surface-2); border-radius: 3px; padding: 1px 5px; }
   .shift-card .who span.gapslot { background: transparent; border: 1px dashed var(--border-strong); color: var(--text-dim); }
+  .shift-card .who span.ispic { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
+  .shift-card .who span.ispic b { font: 700 9px var(--sans); letter-spacing: .08em; margin-left: 4px; vertical-align: 1px; }
+  .shift-card .role .pos {
+    display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 3px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    font: 500 10.5px var(--sans); color: var(--text-dim); text-transform: none; letter-spacing: 0;
+  }
+  .shift-card .role .pos.ph { border-style: dashed; font-style: italic; }
   .shift-card .fill { font: 600 11.5px var(--mono); color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
   .banner {
@@ -437,9 +445,15 @@
               <input type="time" id="shiftEnd" value="13:00" required>
             </label>
           </div>
-          <label class="field">Location
-            <input type="text" id="shiftLocation" placeholder="Court 1–4, booth row, kitchen…">
-          </label>
+          <div class="row">
+            <label class="field" style="flex:2 1 200px">Position
+              <input type="text" id="shiftLocation" placeholder="Foyer, Corridor, Inside Games Hall…">
+            </label>
+            <label class="field" style="flex-direction:row;align-items:center;gap:7px;flex:1 1 190px;text-transform:none;letter-spacing:0;font-size:13px">
+              <input type="checkbox" id="shiftPic" style="width:16px;height:16px">
+              Needs a person in charge
+            </label>
+          </div>
           <label class="field">Notes
             <textarea id="shiftNotes" placeholder="What happens on this shift"></textarea>
           </label>
@@ -525,7 +539,7 @@
 /* =========================================================
    Storage
    ========================================================= */
-const KEY = "shift-scheduler.v2";
+const KEY = "shift-scheduler.v3";
 const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const DOW_LONG = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -610,6 +624,14 @@ function overlaps(a, b) {
   const [s1, e1] = shiftRange(a), [s2, e2] = shiftRange(b);
   return s1 < e2 && s2 < e1;
 }
+/* The person in charge of a shift. Kept as an id on the shift so it survives
+   re-ordering of the assigned list. */
+function picOf(shift) {
+  return shift.requiresPic && shift.pic && shift.assigned.includes(shift.pic) ? shift.pic : null;
+}
+function setPic(shift, personId) {
+  shift.pic = picOf(shift) === personId ? null : personId;
+}
 function hoursOnDay(personId, date) {
   return assignedOnDay(personId, date).reduce((n, s) => n + hours(s), 0);
 }
@@ -667,6 +689,9 @@ function autoFill(dates, { respectLimit = true } = {}) {
       shift.assigned.push(pool[0].p.id);
       placed++;
     }
+    // Nominate a PIC so the post is never left without one; the coordinator
+    // can hand it to someone else in the staffing drawer.
+    if (shift.requiresPic && !picOf(shift) && shift.assigned.length) shift.pic = shift.assigned[0];
   }
   return placed;
 }
@@ -688,6 +713,9 @@ function issuesFor(dates) {
       else if (free.length) detail = `${free.length} could cover it but would go over their daily hours`;
       else detail = "nobody on the roster can cover this";
       out.push({ kind: "gap", level: withinLimit ? "warn" : "bad", text: `${where} needs ${short} more`, detail, shiftId: s.id });
+    }
+    if (s.requiresPic && !picOf(s) && s.assigned.length) {
+      out.push({ kind: "no PIC", level: "bad", text: where, detail: "nobody on this shift is marked person in charge", shiftId: s.id });
     }
     for (const pid of s.assigned) {
       const p = personById(pid);
@@ -790,10 +818,11 @@ function renderBoard() {
       for (const s of list) {
         const short = s.needed - s.assigned.length;
         const cls = short <= 0 ? "full" : s.assigned.length === 0 ? "empty-slots" : "under";
+        const pic = picOf(s);
         const who = el("div", { class: "who" });
         for (const id of s.assigned) {
           const p = personById(id);
-          if (p) who.append(el("span", {}, p.name));
+          if (p) who.append(el("span", { class: id === pic ? "ispic" : "" }, p.name, id === pic ? el("b", {}, "PIC") : null));
         }
         for (let i = 0; i < short; i++) who.append(el("span", { class: "gapslot" }, "open"));
 
@@ -804,8 +833,11 @@ function renderBoard() {
         },
           el("div", { class: "time" }, pretty(s.start), el("br"), pretty(s.end)),
           el("div", {},
-            s.kind !== "session" ? el("div", { class: "kind" }, s.kind === "bump-in" ? "Bump in" : "Bump out") : null,
-            el("div", { class: "role" }, s.role),
+            KIND_LABEL[s.kind] ? el("div", { class: "kind" }, KIND_LABEL[s.kind]) : null,
+            el("div", { class: "role" }, s.role,
+              s.location ? el("span", { class: "pos" }, s.location) : null,
+              s.placeholder ? el("span", { class: "pos ph" }, "placeholder") : null),
+            s.requiresPic && !pic && s.assigned.length ? el("div", { class: "kind", style: "color:var(--bad)" }, "no PIC") : null,
             who
           ),
           el("div", { class: "fill" }, `${s.assigned.length}/${s.needed}`)
@@ -864,7 +896,7 @@ function openShift(id) {
   openShiftId = id;
   const s = shiftById(id);
   if (!s) return;
-  $("#drawerTitle").textContent = `${s.role} · ${shortDate(s.date)}`;
+  $("#drawerTitle").textContent = `${s.role}${s.location ? " · " + s.location : ""} · ${shortDate(s.date)}`;
   const body = $("#drawerBody");
   body.textContent = "";
 
@@ -873,7 +905,8 @@ function openShift(id) {
     el("span", { class: "chip" }, venueName(s.venue)),
     el("span", { class: "chip" }, `${pretty(s.start)}–${pretty(s.end)}`),
     el("span", { class: "chip" }, `${hours(s)}h`),
-    s.kind !== "session" ? el("span", { class: "chip" }, s.kind === "bump-in" ? "Bump in" : "Bump out") : null,
+    KIND_LABEL[s.kind] ? el("span", { class: "chip" }, KIND_LABEL[s.kind]) : null,
+    s.requiresPic ? el("span", { class: "chip " + (picOf(s) ? "ok" : "bad") }, picOf(s) ? "PIC set" : "PIC needed") : null,
     el("span", { class: "chip " + (short <= 0 ? "ok" : s.assigned.length ? "warn" : "bad") },
       short <= 0 ? "fully staffed" : `${short} open`)
   ));
@@ -893,6 +926,11 @@ function openShift(id) {
       ),
       el("div", { class: "spacer" }),
       v.hard.length ? el("span", { class: "chip bad" }, "conflict") : v.soft.length ? el("span", { class: "chip warn" }, "long day") : null,
+      s.requiresPic ? el("button", {
+        class: "btn sm" + (picOf(s) === pid ? " primary" : ""),
+        title: picOf(s) === pid ? "Remove person-in-charge" : "Make person-in-charge",
+        onclick: () => { setPic(s, pid); save(); renderAll(); openShift(s.id); }
+      }, picOf(s) === pid ? "PIC" : "Make PIC") : null,
       el("button", { class: "btn sm", onclick: () => unassign(s.id, pid) }, "Remove")
     ));
   }
@@ -942,6 +980,7 @@ function assign(shiftId, personId, v) {
 function unassign(shiftId, personId) {
   const s = shiftById(shiftId);
   s.assigned = s.assigned.filter(x => x !== personId);
+  if (s.pic === personId) s.pic = null;
   save(); renderAll(); openShift(shiftId);
 }
 
@@ -1042,7 +1081,8 @@ function renderShifts() {
       el("td", {},
         el("div", { class: "small muted" }, venueName(s.venue)),
         el("span", { class: "chip role" }, s.role),
-        s.kind !== "session" ? el("span", { class: "small muted" }, s.kind === "bump-in" ? " bump in" : " bump out") : null
+        s.location ? el("span", { class: "small muted" }, " " + s.location) : null,
+        KIND_LABEL[s.kind] ? el("div", { class: "small muted" }, KIND_LABEL[s.kind]) : null
       ),
       el("td", {},
         el("span", { class: "chip " + (short <= 0 ? "ok" : s.assigned.length ? "warn" : "bad") }, `${s.assigned.length}/${s.needed}`),
@@ -1067,6 +1107,7 @@ function shiftFormFill(s) {
   $("#shiftStart").value = s ? s.start : "09:00";
   $("#shiftEnd").value = s ? s.end : "12:00";
   $("#shiftLocation").value = s ? s.location : "";
+  $("#shiftPic").checked = s ? !!s.requiresPic : false;
   $("#shiftNotes").value = s ? s.notes : "";
   $("#shiftFormTitle").textContent = s ? "Edit shift" : "Add shift";
   $("#shiftSaveBtn").textContent = s ? "Save changes" : "Add shift";
@@ -1106,6 +1147,7 @@ function readShiftForm() {
     end: $("#shiftEnd").value,
     location: $("#shiftLocation").value.trim(),
     notes: $("#shiftNotes").value.trim(),
+    requiresPic: $("#shiftPic").checked,
     kind: "session"
   };
 }
@@ -1125,8 +1167,8 @@ function renderReports() {
   for (const s of list) {
     slots += s.needed;
     filled += Math.min(s.assigned.length, s.needed);
-    const key = s.venue + "|" + s.role;
-    const g = perGroup.get(key) || { venue: s.venue, role: s.role, slots: 0, filled: 0 };
+    const key = s.venue + "|" + s.role + "|" + s.location;
+    const g = perGroup.get(key) || { venue: s.venue, role: s.role, position: s.location, slots: 0, filled: 0 };
     g.slots += s.needed; g.filled += Math.min(s.assigned.length, s.needed);
     perGroup.set(key, g);
     for (const pid of s.assigned) {
@@ -1166,12 +1208,14 @@ function renderReports() {
 
   const rb = $("#repRolesBody"); rb.textContent = "";
   const order = id => db.event.venues.findIndex(v => v.id === id);
-  const groups = [...perGroup.values()].sort((a, b) => order(a.venue) - order(b.venue) || a.role.localeCompare(b.role));
+  const groups = [...perGroup.values()].sort((a, b) =>
+    order(a.venue) - order(b.venue) || a.role.localeCompare(b.role) || a.position.localeCompare(b.position));
   if (!groups.length) rb.append(el("tr", {}, el("td", { colspan: "4", class: "empty" }, "No shifts in range.")));
   for (const g of groups) {
     const rp = g.slots ? Math.round(g.filled / g.slots * 100) : 0;
     rb.append(el("tr", {},
-      el("td", {}, el("div", { class: "small muted" }, venueName(g.venue)), el("span", { class: "chip role" }, g.role)),
+      el("td", {}, el("div", { class: "small muted" }, venueName(g.venue)), el("span", { class: "chip role" }, g.role),
+        g.position ? el("div", { class: "small muted" }, g.position) : null),
       el("td", {}, String(g.slots)),
       el("td", {}, String(g.filled)),
       el("td", {},
@@ -1195,11 +1239,13 @@ function download(name, text, type = "text/csv") {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 function scheduleCsv(list) {
-  const rows = [["Date", "Day", "Start", "End", "Hours", "Venue", "Role", "Type", "Needed", "Assigned", "People", "Notes"]];
+  const rows = [["Date", "Day", "Start", "End", "Hours", "Venue", "Role", "Position", "Needed", "Assigned", "People", "PIC", "Notes"]];
   for (const s of list) {
-    rows.push([s.date, DOW_LONG[dowOf(s.date)], s.start, s.end, hours(s), venueName(s.venue), s.role, s.kind,
+    const pic = picOf(s);
+    rows.push([s.date, DOW_LONG[dowOf(s.date)], s.start, s.end, hours(s), venueName(s.venue), s.role, s.location,
       s.needed, s.assigned.length,
-      s.assigned.map(id => (personById(id) || {}).name).filter(Boolean).join("; "), s.notes]);
+      s.assigned.map(id => (personById(id) || {}).name).filter(Boolean).join("; "),
+      pic ? (personById(pic) || {}).name : "", s.notes]);
   }
   return rows.map(r => r.map(csvEscape).join(",")).join("\n");
 }
@@ -1446,52 +1492,148 @@ const EVENT = {
       id: "stadium",
       name: "Stadium Hall",
       subtitle: "Competition hall",
-      opensLabel: "Matches from 9am · bump in 7.45am · bump out by 7pm",
-      roles: ["Umpire", "Match Control", "Warden"]
+      opensLabel: "Matches 9am–7pm · bump in 7.45am · bump out by 7pm",
+      roles: ["Match Control", "Umpire", "Usher"]
     },
     {
       id: "games",
       name: "Games Hall",
       subtitle: "Activation festival",
       opensLabel: "Open 10.30am–5pm · bump in 7.45am · bump out by 7pm",
-      roles: ["Monash Badminton Club", "Booth support", "Warden", "Snack Area"]
+      roles: ["Monash Badminton Club", "Booth support", "Check in desk", "Snack Area", "Usher"]
     }
   ]
 };
 
-/* venue, start, end, kind, [ [role, headcount], ... ] */
-const RUN_SHEET = [
-  // ---- Stadium Hall: bump in 7.45, matches 9am, three blocks, bump out to 7pm
-  ["stadium", "07:45", "09:00", "bump-in",  [["Warden", 4]]],
-  ["stadium", "09:00", "12:00", "session",  [["Umpire", 4], ["Match Control", 2], ["Warden", 2]]],
-  ["stadium", "12:00", "15:00", "session",  [["Umpire", 4], ["Match Control", 2], ["Warden", 2]]],
-  ["stadium", "15:00", "18:00", "session",  [["Umpire", 4], ["Match Control", 2], ["Warden", 2]]],
-  ["stadium", "18:00", "19:00", "bump-out", [["Warden", 4]]],
+/* Shift kinds. The opening shift on a post absorbs bump in and the closing one
+   absorbs bump out, which keeps every shift inside the 3-5 hour band instead of
+   leaving stranded 75-minute setup slots. */
+const KIND_LABEL = { open: "incl. bump in", close: "incl. bump out", session: "" };
 
-  // ---- Games Hall: bump in 7.45 through to the 10.30 open, two blocks, bump out to 7pm
-  ["games",   "07:45", "10:30", "bump-in",  [["Warden", 3]]],
-  ["games",   "10:30", "14:00", "session",  [["Monash Badminton Club", 2], ["Booth support", 3], ["Warden", 2], ["Snack Area", 2]]],
-  ["games",   "14:00", "17:00", "session",  [["Monash Badminton Club", 2], ["Booth support", 3], ["Warden", 2], ["Snack Area", 2]]],
-  ["games",   "17:00", "19:00", "bump-out", [["Warden", 3]]]
+/* venue, role, post, headcount, start, end, kind, options
+   -----------------------------------------------------------------------
+   Posts are staggered, not rotated as whole waves. Each post hands over at a
+   different time, so the number of people on duty stays exactly as briefed
+   while shift changes overlap the neighbouring post - cover never drops and
+   no post loses its whole team at once. Every shift is 3-5 hours apart from
+   the umpire patterns, which are fixed by the brief. */
+const RUN_SHEET = [
+  /* ===== Stadium Hall ================================================== */
+
+  /* Match Control - 3 on at all times from 9am, one of them the PIC.
+     The PIC desk changes over at 2pm, the other two at 1pm and 4pm. */
+  ["stadium", "Match Control", "PIC desk",     1, "09:00", "14:00", "session", { pic: true }],
+  ["stadium", "Match Control", "PIC desk",     1, "14:00", "19:00", "session", { pic: true }],
+  ["stadium", "Match Control", "Control desk", 2, "09:00", "13:00", "session"],
+  ["stadium", "Match Control", "Control desk", 2, "13:00", "16:00", "session"],
+  ["stadium", "Match Control", "Control desk", 2, "16:00", "19:00", "session"],
+
+  /* Ushers - 4 on, two in the foyer and two in the corridor. The two people
+     on each post change over half an hour apart. */
+  ["stadium", "Usher", "Foyer",    1, "07:45", "12:00", "open"],
+  ["stadium", "Usher", "Foyer",    1, "12:00", "15:30", "session"],
+  ["stadium", "Usher", "Foyer",    1, "15:30", "19:00", "close"],
+  ["stadium", "Usher", "Foyer",    1, "07:45", "11:30", "open"],
+  ["stadium", "Usher", "Foyer",    1, "11:30", "15:00", "session"],
+  ["stadium", "Usher", "Foyer",    1, "15:00", "19:00", "close"],
+  ["stadium", "Usher", "Corridor", 1, "07:45", "12:15", "open"],
+  ["stadium", "Usher", "Corridor", 1, "12:15", "15:45", "session"],
+  ["stadium", "Usher", "Corridor", 1, "15:45", "19:00", "close"],
+  ["stadium", "Usher", "Corridor", 1, "07:45", "11:45", "open"],
+  ["stadium", "Usher", "Corridor", 1, "11:45", "15:15", "session"],
+  ["stadium", "Usher", "Corridor", 1, "15:15", "19:00", "close"],
+
+  /* Umpires - fixed patterns, flexible people. Headcounts are placeholders
+     until the umpire list is known; edit the number needed on each. */
+  ["stadium", "Umpire", "Whole day", 4, "09:00", "19:00", "session", { placeholder: true }],
+  ["stadium", "Umpire", "Morning",   4, "09:00", "14:00", "session", { placeholder: true }],
+  ["stadium", "Umpire", "Afternoon", 4, "14:00", "19:00", "session", { placeholder: true }],
+
+  /* ===== Games Hall ==================================================== */
+
+  /* Ushers - 4 on, two by the sports centre canteen and two inside. This is
+     also the crew that opens and closes the hall. */
+  ["games", "Usher", "Sports centre canteen", 1, "07:45", "11:30", "open"],
+  ["games", "Usher", "Sports centre canteen", 1, "11:30", "15:15", "session"],
+  ["games", "Usher", "Sports centre canteen", 1, "15:15", "19:00", "close"],
+  ["games", "Usher", "Sports centre canteen", 1, "07:45", "11:00", "open"],
+  ["games", "Usher", "Sports centre canteen", 1, "11:00", "15:00", "session"],
+  ["games", "Usher", "Sports centre canteen", 1, "15:00", "19:00", "close"],
+  ["games", "Usher", "Inside Games Hall",     1, "07:45", "11:45", "open"],
+  ["games", "Usher", "Inside Games Hall",     1, "11:45", "15:30", "session"],
+  ["games", "Usher", "Inside Games Hall",     1, "15:30", "19:00", "close"],
+  ["games", "Usher", "Inside Games Hall",     1, "07:45", "11:15", "open"],
+  ["games", "Usher", "Inside Games Hall",     1, "11:15", "15:15", "session"],
+  ["games", "Usher", "Inside Games Hall",     1, "15:15", "19:00", "close"],
+
+  /* Public-facing posts run while the festival is open, 10.30am-5pm. */
+  ["games", "Monash Badminton Club", "", 1, "10:30", "13:45", "session"],
+  ["games", "Monash Badminton Club", "", 1, "13:45", "17:00", "session"],
+  ["games", "Monash Badminton Club", "", 1, "10:30", "14:00", "session"],
+  ["games", "Monash Badminton Club", "", 1, "14:00", "17:00", "session"],
+
+  ["games", "Check in desk", "", 1, "10:30", "13:30", "session"],
+  ["games", "Check in desk", "", 1, "13:30", "17:00", "session"],
+  ["games", "Check in desk", "", 1, "10:30", "14:00", "session"],
+  ["games", "Check in desk", "", 1, "14:00", "17:00", "session"],
+
+  ["games", "Snack Area", "", 1, "10:30", "13:45", "session"],
+  ["games", "Snack Area", "", 1, "13:45", "17:00", "session"],
+  ["games", "Snack Area", "", 1, "10:30", "13:30", "session"],
+  ["games", "Snack Area", "", 1, "13:30", "17:00", "session"],
+
+  /* Booth support - 10 on, run as two teams of five changing over half an
+     hour apart so the booths are never all handing over at once. */
+  ["games", "Booth support", "Team A", 5, "10:30", "14:00", "session"],
+  ["games", "Booth support", "Team A", 5, "14:00", "17:00", "session"],
+  ["games", "Booth support", "Team B", 5, "10:30", "13:30", "session"],
+  ["games", "Booth support", "Team B", 5, "13:30", "17:00", "session"]
+];
+
+/* Volunteers already named. Everyone else is still to be recruited. */
+const NAMED = [
+  ["Alex",     "games", ["Monash Badminton Club"]],
+  ["Charlie",  "games", ["Monash Badminton Club"]],
+  ["Sean",     "games", ["Usher"]],
+  ["Patrick",  "games", ["Usher"]],
+  ["Clemen",   "games", ["Usher"]],
+  ["Malcolm",  "games", ["Usher"]],
+  ["Darren",   "games", ["Check in desk"]],
+  ["Lily",     "games", ["Check in desk"]],
+  ["Darrell",  "games", ["Snack Area"]],
+  ["TBC",      "games", ["Snack Area"]]
 ];
 
 function buildRunSheet() {
   const out = [];
   for (const date of EVENT.days) {
-    for (const [venue, start, end, kind, roles] of RUN_SHEET) {
-      for (const [role, needed] of roles) {
-        out.push({
-          id: uid(), date, venue, role, needed, start, end, kind,
-          location: "", notes: "", assigned: []
-        });
-      }
+    for (const [venue, role, position, needed, start, end, kind, opts] of RUN_SHEET) {
+      const o = opts || {};
+      out.push({
+        id: uid(), date, venue, role, needed, start, end, kind,
+        location: position || "",
+        requiresPic: !!o.pic,
+        placeholder: !!o.placeholder,
+        pic: null,
+        notes: o.placeholder ? "Headcount is a placeholder until the umpire list is confirmed." : "",
+        assigned: []
+      });
     }
   }
   return out;
 }
 
+function buildRoster() {
+  return NAMED.map(([name, venue, roles]) => ({
+    id: uid(), name, type: "volunteer", contact: "", maxHours: 10,
+    roles, days: [...EVENT.days], venues: [venue],
+    from: EVENT.bumpIn, to: EVENT.bumpOut,
+    notes: name === "TBC" ? "Placeholder — replace with a real name once confirmed." : ""
+  }));
+}
+
 function seed() {
-  return { event: structuredClone(EVENT), people: [], shifts: buildRunSheet(), version: 2 };
+  return { event: structuredClone(EVENT), people: buildRoster(), shifts: buildRunSheet(), version: 3, fresh: true };
 }
 
 /* =========================================================
@@ -1503,6 +1645,7 @@ try {
 } catch (e) {}
 
 db = load();
+if (db.fresh) { delete db.fresh; autoFill(eventDays()); }
 wire();
 personFormFill(null);
 shiftFormFill(null);

@@ -11,32 +11,95 @@ two venues:
 
 | Venue | | Roles | Public hours |
 |---|---|---|---|
-| **Stadium Hall** | competition hall | Umpire, Match Control, Warden | matches from 9.00am |
-| **Games Hall** | activation festival | Monash Badminton Club, Booth support, Warden, Snack Area | open from 10.30am |
+| **Stadium Hall** | competition hall | Match Control, Umpire, Usher | matches 9.00am–7.00pm |
+| **Games Hall** | activation festival | Monash Badminton Club, Booth support, Check in desk, Snack Area, Usher | open 10.30am–5.00pm |
 
-The run sheet built from this is 42 shifts — 21 per day:
+### Staffing levels
 
-**Stadium Hall** — bump in 7.45–9.00 · matches 9.00–12.00, 12.00–3.00, 3.00–6.00 · bump out 6.00–7.00
-**Games Hall** — bump in 7.45–10.30 · festival 10.30–2.00, 2.00–5.00 · bump out 5.00–7.00
+| Venue | Role | On at once | Posts | Slots/day |
+|---|---|---|---|---|
+| Stadium Hall | Match Control | 3 (one is PIC) | PIC desk, Control desk | 8 |
+| Stadium Hall | Usher | 4 | 2 foyer, 2 corridor | 12 |
+| Stadium Hall | Umpire | 8 at peak | whole day / morning / afternoon | 12 *(placeholder)* |
+| Games Hall | Usher | 4 | 2 sports centre canteen, 2 inside | 12 |
+| Games Hall | Booth support | 10 | Team A, Team B | 20 |
+| Games Hall | Monash Badminton Club | 2 | — | 4 |
+| Games Hall | Check in desk | 2 | — | 4 |
+| Games Hall | Snack Area | 2 | — | 4 |
 
-Blocks run back-to-back with no gaps, and every role is staffed in every
-session block.
+96 shifts over the weekend — 48 a day, 76 person-slots a day, 152 across both days.
+
+### How the shifts are cut
+
+Every shift is **3–5 hours**, and posts are **staggered rather than rotated as
+whole waves**. Each post hands over at a different time, so shift changes
+overlap the neighbouring post while the number of people on duty stays exactly
+as briefed.
+
+Rotating whole waves would have been the obvious way to get overlap, but it
+doubles the headcount during the handover — a 2-person post would need 4 people
+present. Staggering gives the same continuity at the briefed headcount.
+
+Worked example, Stadium Hall ushers (4 on, all day):
+
+```
+Foyer    7.45─────12.00────────15.30───────19.00
+Foyer    7.45───11.30──────15.00──────────19.00
+Corridor 7.45──────12.15─────────15.45────19.00
+Corridor 7.45────11.45───────15.15────────19.00
+```
+
+Four people on the floor at every moment, four different handover times, and no
+shift longer than 4.5 hours.
+
+**Umpires are the exception.** Their patterns are fixed by the brief — whole day
+9am–7pm, morning 9am–2pm, afternoon 2pm–7pm — so the whole-day shift is 10 hours
+and overlaps both half-days. Headcounts on all three are **placeholders**
+(4 each) until the umpire list is known; they are marked *placeholder* on the
+board.
+
+### Person in charge
+
+Match Control shifts require a **PIC**. The PIC desk is a one-person post that
+changes over at 2pm, alongside two more Match Control staff who change at 1pm
+and 4pm. Auto-fill nominates a PIC automatically; hand it to someone else with
+**Make PIC** in the staffing drawer. A Match Control shift with people on it but
+no PIC is flagged in the Issues panel.
+
+### Volunteers already named
+
+Ten people are pre-loaded and already rostered, all at Games Hall:
+
+| Role | People |
+|---|---|
+| Monash Badminton Club | Alex, Charlie |
+| Usher | Sean, Patrick, Clemen, Malcolm |
+| Check in desk | Darren, Lily |
+| Snack Area | Darrell, **TBC** |
+
+*TBC* is a placeholder person — rename them once the name is confirmed.
+
+### How many more you need
+
+Roughly **35 people on site at peak** (15 Stadium Hall, 20 Games Hall). Across a
+whole day that is 76 person-slots, so:
+
+- about **38 volunteers a day** if each does two shifts
+- about **76 a day** if each does one
+
+Biggest gaps right now are Booth support (10 on at once, 20 slots a day) and
+Umpires.
 
 ### Assumptions worth checking
 
-These were not specified, so they are starting points rather than settings in
-stone. All are editable per shift on the **Shifts** tab, and **Reset run sheet**
-rebuilds the default at any time.
-
-- **Session block lengths.** Stadium Hall is cut into three ~3-hour blocks and
-  Games Hall into two, so volunteers rotate rather than standing a ten-hour day.
 - **Games Hall closes at 5pm**, with the last two hours used for bump out.
-  Stadium Hall runs to 6pm with a one-hour bump out.
-- **Headcounts.** Per session block: Stadium Hall 4 Umpires, 2 Match Control,
-  2 Wardens; Games Hall 2 Monash Badminton Club, 3 Booth support, 2 Wardens,
-  2 Snack Area. Bump in/out crews are 4 (Stadium) and 3 (Games).
-- **Bump in and bump out are Warden shifts**, since Warden is the general crew
-  role at both venues. Anyone with no role restriction can be assigned to them.
+  You gave an opening time but not a closing one.
+- **Umpire headcounts** of 4 per pattern are pure placeholders.
+- **Booth support runs as two teams of five** changing half an hour apart. If
+  the booths need individually named posts instead, say so.
+- **Ushers do bump in and bump out** at both venues, since they are the general
+  crew role. Their first and last shifts absorb it rather than there being
+  separate 75-minute setup slots.
 
 ## Using it
 
