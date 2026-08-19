@@ -1,0 +1,56 @@
+{
+  "name": "2025 Monash Open",
+  "venue": "Monash University Badminton Club",
+  "granularityMin": 10,
+  "restMin": 20,
+  "turnaroundMin": 0,
+  "matchMinutes": { "O": 30, "A": 25, "B": 25, "C": 25, "default": 25 },
+  "shuttlesPerMatch": { "O": 4, "default": 2 },
+  "gradeCourts": { "O": [1, 2, 3, 4] },
+  "strictGradeCourts": false,
+  "days": [
+    {
+      "id": 1,
+      "date": "2025-09-05",
+      "label": "Sat 5 September 2025",
+      "grades": ["A", "C"],
+      "courts": 10,
+      "start": "09:00",
+      "end": "20:00"
+    },
+    {
+      "id": 2,
+      "date": "2025-09-06",
+      "label": "Sun 6 September 2025",
+      "grades": ["O", "B"],
+      "courts": 10,
+      "start": "09:00",
+      "end": "20:00"
+    }
+  ],
+  "events": [
+    { "grade": "O", "discipline": "MS", "entries": 18, "seeds": 4, "format": "RR + KO", "day": 2 },
+    { "grade": "O", "discipline": "WS", "entries": 2, "seeds": 2, "format": "KO", "day": 2 },
+    { "grade": "O", "discipline": "MD", "entries": 8, "seeds": 2, "format": "RR + KO", "day": 2 },
+    { "grade": "O", "discipline": "WD", "entries": 2, "seeds": 2, "format": "RR + KO", "day": 2 },
+    { "grade": "O", "discipline": "XD", "entries": 2, "seeds": 2, "format": "RR + KO", "day": 2 },
+
+    { "grade": "A", "discipline": "MS", "entries": 15, "seeds": 2, "format": "RR + KO", "day": 1 },
+    { "grade": "A", "discipline": "WS", "entries": 0, "seeds": 2, "format": "RR", "day": 1 },
+    { "grade": "A", "discipline": "MD", "entries": 14, "seeds": 2, "format": "RR + KO", "day": 1 },
+    { "grade": "A", "discipline": "WD", "entries": 0, "seeds": 2, "format": "RR", "day": 1 },
+    { "grade": "A", "discipline": "XD", "entries": 3, "seeds": 2, "format": "RR", "day": 1 },
+
+    { "grade": "B", "discipline": "MS", "entries": 18, "seeds": 4, "format": "RR + KO", "day": 2 },
+    { "grade": "B", "discipline": "WS", "entries": 3, "seeds": 2, "format": "RR", "day": 2 },
+    { "grade": "B", "discipline": "MD", "entries": 16, "seeds": 4, "format": "RR + KO", "day": 2 },
+    { "grade": "B", "discipline": "WD", "entries": 6, "seeds": 2, "format": "RR + KO", "day": 2 },
+    { "grade": "B", "discipline": "XD", "entries": 10, "seeds": 2, "format": "RR + KO", "day": 2 },
+
+    { "grade": "C", "discipline": "MS", "entries": 45, "seeds": 8, "format": "RR + KO", "day": 1 },
+    { "grade": "C", "discipline": "WS", "entries": 6, "seeds": 2, "format": "RR + KO", "day": 1 },
+    { "grade": "C", "discipline": "MD", "entries": 30, "seeds": 4, "format": "RR + KO", "day": 1 },
+    { "grade": "C", "discipline": "WD", "entries": 12, "seeds": 2, "format": "RR + KO", "day": 1 },
+    { "grade": "C", "discipline": "XD", "entries": 16, "seeds": 4, "format": "RR + KO", "day": 1 }
+  ]
+}

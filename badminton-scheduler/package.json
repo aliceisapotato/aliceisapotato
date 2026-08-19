@@ -1,0 +1,14 @@
+{
+  "name": "badminton-scheduler",
+  "version": "1.0.0",
+  "description": "Automatic match scheduler for badminton tournaments (Monash Open format: 4 grades x 5 disciplines, round robin + knockout)",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node server.js",
+    "schedule": "node src/cli.js",
+    "test": "node --test test/*.test.js"
+  },
+  "license": "MIT",
+  "private": true
+}

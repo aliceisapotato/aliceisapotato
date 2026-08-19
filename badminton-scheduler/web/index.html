@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Badminton Match Scheduler</title>
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div>
+    <h1>Badminton Match Scheduler</h1>
+    <p class="sub" id="tournamentSub">Round-robin + knockout draws, automatically placed on courts</p>
+  </div>
+  <div class="topbar-actions">
+    <button id="generateBtn" class="primary">Generate schedule</button>
+    <button id="resetBtn" class="ghost" title="Reload the 2025 Monash Open setup">Load defaults</button>
+  </div>
+</header>
+
+<main>
+  <section class="panel" id="settings">
+    <h2>Tournament</h2>
+    <div class="grid-2">
+      <label>Name<input id="cfgName" type="text"></label>
+      <label>Venue<input id="cfgVenue" type="text"></label>
+    </div>
+
+    <h3>Days</h3>
+    <div class="tbl-wrap"><table class="tbl" id="daysTable">
+      <thead>
+        <tr><th>Date</th><th>Label</th><th>Grades</th><th>Courts</th><th>Start</th><th>End</th><th></th></tr>
+      </thead>
+      <tbody></tbody>
+    </table></div>
+    <button class="ghost small" id="addDayBtn">+ Add day</button>
+
+    <h3>Match length &amp; turnaround</h3>
+    <div class="grid-4">
+      <label>Open (mins)<input id="minsO" type="number" min="5" step="5"></label>
+      <label>A grade<input id="minsA" type="number" min="5" step="5"></label>
+      <label>B grade<input id="minsB" type="number" min="5" step="5"></label>
+      <label>C grade<input id="minsC" type="number" min="5" step="5"></label>
+      <label>Rest between a player's matches
+        <input id="cfgRest" type="number" min="0" step="5"></label>
+      <label>Court turnaround<input id="cfgTurnaround" type="number" min="0" step="5"></label>
+      <label>Time grid (mins)<input id="cfgGranularity" type="number" min="5" step="5"></label>
+      <label>Shuttles: Open / other
+        <span class="pair"><input id="shuttleO" type="number" min="0"><input id="shuttleDefault" type="number" min="0"></span>
+      </label>
+    </div>
+
+    <h3>Court reservation</h3>
+    <div class="grid-2">
+      <label>Courts kept for Open events (e.g. 1-4)<input id="cfgOpenCourts" type="text" placeholder="1-4"></label>
+      <label class="checkbox"><input id="cfgStrict" type="checkbox">
+        <span>Strict — nothing else may use those courts</span></label>
+    </div>
+
+    <h3>Events</h3>
+    <div class="tbl-wrap"><table class="tbl" id="eventsTable">
+      <thead>
+        <tr><th>Grade</th><th>Discipline</th><th>Entries</th><th>Seeds</th><th>Format</th><th>Day</th><th>Qual./group</th><th></th></tr>
+      </thead>
+      <tbody></tbody>
+    </table></div>
+    <div class="row">
+      <button class="ghost small" id="addEventBtn">+ Add event</button>
+      <button class="ghost small" id="exportCfgBtn">Export setup (JSON)</button>
+      <label class="file small">Import setup<input id="importCfg" type="file" accept="application/json"></label>
+    </div>
+  </section>
+
+  <section class="panel" id="results">
+    <div class="tabs" id="tabs">
+      <button data-tab="schedule" class="active">Schedule</button>
+      <button data-tab="summary">Summary</button>
+      <button data-tab="draws">Draws</button>
+      <button data-tab="checks">Checks</button>
+    </div>
+
+    <div class="tab-body" id="tab-schedule">
+      <div class="row between">
+        <div class="day-switch" id="daySwitch"></div>
+        <div class="row">
+          <button class="ghost small" id="exportGridBtn">Grid CSV</button>
+          <button class="ghost small" id="exportMatchesBtn">Matches CSV</button>
+          <button class="ghost small" id="printBtn">Print</button>
+        </div>
+      </div>
+      <div id="dayStats" class="stats"></div>
+      <div class="grid-wrap"><div id="gridHost"></div></div>
+    </div>
+
+    <div class="tab-body hidden" id="tab-summary">
+      <div class="row between">
+        <div id="totals" class="stats"></div>
+        <button class="ghost small" id="exportSummaryBtn">Summary CSV</button>
+      </div>
+      <div id="summaryHost"></div>
+    </div>
+
+    <div class="tab-body hidden" id="tab-draws">
+      <div id="drawsHost"></div>
+    </div>
+
+    <div class="tab-body hidden" id="tab-checks">
+      <div id="checksHost"></div>
+    </div>
+  </section>
+</main>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>

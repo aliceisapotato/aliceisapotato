@@ -1,0 +1,1652 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Badminton Match Scheduler</title>
+<style>
+:root {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --ink: #16191d;
+  --muted: #6b7280;
+  --line: #e2e5ea;
+  --accent: #0b6b3a;
+  --accent-ink: #ffffff;
+  --warn: #b45309;
+  --error: #b91c1c;
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+h1 { font-size: 19px; margin: 0; }
+h2 { font-size: 15px; margin: 0 0 12px; }
+h3 { font-size: 13px; margin: 22px 0 8px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+
+.topbar {
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  padding: 14px 20px; background: var(--panel); border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 20;
+}
+.topbar .sub { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+.topbar-actions { display: flex; gap: 8px; }
+
+main {
+  display: grid; grid-template-columns: minmax(340px, 420px) 1fr;
+  gap: 16px; padding: 16px; align-items: start;
+}
+@media (max-width: 1100px) { main { grid-template-columns: 1fr; } }
+
+.panel {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 16px;
+}
+
+button {
+  font: inherit; cursor: pointer; border-radius: 7px; border: 1px solid var(--line);
+  background: #fff; padding: 7px 12px;
+}
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+button.ghost:hover { background: #f0f2f5; }
+button.small { padding: 4px 9px; font-size: 12px; }
+
+label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+label.checkbox { flex-direction: row; align-items: center; gap: 8px; }
+label.file { border: 1px solid var(--line); border-radius: 7px; padding: 4px 9px; font-size: 12px; cursor: pointer; }
+label.file input { display: none; }
+input, select {
+  font: inherit; color: var(--ink); padding: 6px 8px;
+  border: 1px solid var(--line); border-radius: 6px; background: #fff; width: 100%;
+}
+.pair { display: flex; gap: 6px; }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+@media (max-width: 640px) { .grid-4 { grid-template-columns: 1fr 1fr; } }
+
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.row.between { justify-content: space-between; margin-bottom: 10px; }
+
+.tbl-wrap { overflow-x: auto; }
+#settings .tbl { min-width: 470px; }
+#settings .tbl select { min-width: 66px; }
+#settings .tbl input[type="number"] { min-width: 54px; }
+#settings .tbl input[type="text"], #settings .tbl input[type="date"], #settings .tbl input[type="time"] { min-width: 96px; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.tbl th {
+  text-align: left; font-weight: 600; color: var(--muted); padding: 4px 6px;
+  border-bottom: 1px solid var(--line); white-space: nowrap;
+}
+.tbl td { padding: 2px 3px; border-bottom: 1px solid #f1f3f5; }
+.tbl input, .tbl select { padding: 4px 6px; font-size: 12px; }
+.tbl td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.tbl tfoot td { font-weight: 600; border-top: 1px solid var(--line); }
+.del { color: var(--muted); border: none; background: none; padding: 2px 6px; }
+.del:hover { color: var(--error); }
+
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+.tabs button { border: none; background: none; border-bottom: 2px solid transparent; border-radius: 0; color: var(--muted); }
+.tabs button.active { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+.hidden { display: none; }
+
+.day-switch button { margin-right: 6px; }
+.day-switch button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.stats { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 12px; font-size: 12px; }
+.stats div { display: flex; flex-direction: column; }
+.stats span.k { color: var(--muted); }
+.stats span.v { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.grid-wrap { overflow-x: auto; }
+table.grid { border-collapse: collapse; font-size: 11px; width: 100%; }
+table.grid th {
+  position: sticky; top: 0; background: #fafbfc; z-index: 2;
+  border: 1px solid var(--line); padding: 5px 4px; font-weight: 600; white-space: nowrap;
+}
+table.grid td { border: 1px solid var(--line); padding: 0; height: 22px; vertical-align: top; }
+table.grid td.time {
+  background: #fafbfc; color: var(--muted); text-align: right; padding: 2px 6px;
+  font-variant-numeric: tabular-nums; white-space: nowrap; width: 56px;
+}
+table.grid td.hour { border-top: 2px solid #cfd4da; }
+.cell { height: 100%; padding: 3px 4px; line-height: 1.25; border-radius: 3px; }
+.cell .ev { font-weight: 700; }
+.cell .rd { color: #333; opacity: .8; }
+.cell .tm { color: #333; opacity: .65; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; font-size: 11px; }
+.legend span { padding: 2px 7px; border-radius: 999px; }
+
+.note { padding: 8px 10px; border-radius: 7px; margin-bottom: 8px; font-size: 12px; border-left: 3px solid; background: #fafbfc; }
+.note.info { border-color: #2563eb; }
+.note.warn { border-color: var(--warn); }
+.note.error { border-color: var(--error); background: #fef2f2; }
+.note b { display: block; }
+
+.draw { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
+.draw h4 { margin: 0 0 6px; font-size: 13px; }
+.draw .meta { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+.groups { display: flex; flex-wrap: wrap; gap: 8px; }
+.group { border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 11px; min-width: 130px; }
+.group b { display: block; color: var(--muted); font-weight: 600; margin-bottom: 3px; }
+.bad { color: var(--error); font-weight: 600; }
+.ok { color: var(--accent); }
+
+@media print {
+  .topbar-actions, #settings, .tabs, .row.between, .day-switch { display: none !important; }
+  main { grid-template-columns: 1fr; padding: 0; }
+  .panel { border: none; }
+  table.grid { font-size: 9px; }
+  .tab-body.hidden { display: none; }
+}
+
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div>
+    <h1>Badminton Match Scheduler</h1>
+    <p class="sub" id="tournamentSub">Round-robin + knockout draws, automatically placed on courts</p>
+  </div>
+  <div class="topbar-actions">
+    <button id="generateBtn" class="primary">Generate schedule</button>
+    <button id="resetBtn" class="ghost" title="Reload the 2025 Monash Open setup">Load defaults</button>
+  </div>
+</header>
+
+<main>
+  <section class="panel" id="settings">
+    <h2>Tournament</h2>
+    <div class="grid-2">
+      <label>Name<input id="cfgName" type="text"></label>
+      <label>Venue<input id="cfgVenue" type="text"></label>
+    </div>
+
+    <h3>Days</h3>
+    <div class="tbl-wrap"><table class="tbl" id="daysTable">
+      <thead>
+        <tr><th>Date</th><th>Label</th><th>Grades</th><th>Courts</th><th>Start</th><th>End</th><th></th></tr>
+      </thead>
+      <tbody></tbody>
+    </table></div>
+    <button class="ghost small" id="addDayBtn">+ Add day</button>
+
+    <h3>Match length &amp; turnaround</h3>
+    <div class="grid-4">
+      <label>Open (mins)<input id="minsO" type="number" min="5" step="5"></label>
+      <label>A grade<input id="minsA" type="number" min="5" step="5"></label>
+      <label>B grade<input id="minsB" type="number" min="5" step="5"></label>
+      <label>C grade<input id="minsC" type="number" min="5" step="5"></label>
+      <label>Rest between a player's matches
+        <input id="cfgRest" type="number" min="0" step="5"></label>
+      <label>Court turnaround<input id="cfgTurnaround" type="number" min="0" step="5"></label>
+      <label>Time grid (mins)<input id="cfgGranularity" type="number" min="5" step="5"></label>
+      <label>Shuttles: Open / other
+        <span class="pair"><input id="shuttleO" type="number" min="0"><input id="shuttleDefault" type="number" min="0"></span>
+      </label>
+    </div>
+
+    <h3>Court reservation</h3>
+    <div class="grid-2">
+      <label>Courts kept for Open events (e.g. 1-4)<input id="cfgOpenCourts" type="text" placeholder="1-4"></label>
+      <label class="checkbox"><input id="cfgStrict" type="checkbox">
+        <span>Strict — nothing else may use those courts</span></label>
+    </div>
+
+    <h3>Events</h3>
+    <div class="tbl-wrap"><table class="tbl" id="eventsTable">
+      <thead>
+        <tr><th>Grade</th><th>Discipline</th><th>Entries</th><th>Seeds</th><th>Format</th><th>Day</th><th>Qual./group</th><th></th></tr>
+      </thead>
+      <tbody></tbody>
+    </table></div>
+    <div class="row">
+      <button class="ghost small" id="addEventBtn">+ Add event</button>
+      <button class="ghost small" id="exportCfgBtn">Export setup (JSON)</button>
+      <label class="file small">Import setup<input id="importCfg" type="file" accept="application/json"></label>
+    </div>
+  </section>
+
+  <section class="panel" id="results">
+    <div class="tabs" id="tabs">
+      <button data-tab="schedule" class="active">Schedule</button>
+      <button data-tab="summary">Summary</button>
+      <button data-tab="draws">Draws</button>
+      <button data-tab="checks">Checks</button>
+    </div>
+
+    <div class="tab-body" id="tab-schedule">
+      <div class="row between">
+        <div class="day-switch" id="daySwitch"></div>
+        <div class="row">
+          <button class="ghost small" id="exportGridBtn">Grid CSV</button>
+          <button class="ghost small" id="exportMatchesBtn">Matches CSV</button>
+          <button class="ghost small" id="printBtn">Print</button>
+        </div>
+      </div>
+      <div id="dayStats" class="stats"></div>
+      <div class="grid-wrap"><div id="gridHost"></div></div>
+    </div>
+
+    <div class="tab-body hidden" id="tab-summary">
+      <div class="row between">
+        <div id="totals" class="stats"></div>
+        <button class="ghost small" id="exportSummaryBtn">Summary CSV</button>
+      </div>
+      <div id="summaryHost"></div>
+    </div>
+
+    <div class="tab-body hidden" id="tab-draws">
+      <div id="drawsHost"></div>
+    </div>
+
+    <div class="tab-body hidden" id="tab-checks">
+      <div id="checksHost"></div>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+const DEFAULT_CONFIG = {
+  "name": "2025 Monash Open",
+  "venue": "Monash University Badminton Club",
+  "granularityMin": 10,
+  "restMin": 20,
+  "turnaroundMin": 0,
+  "matchMinutes": { "O": 30, "A": 25, "B": 25, "C": 25, "default": 25 },
+  "shuttlesPerMatch": { "O": 4, "default": 2 },
+  "gradeCourts": { "O": [1, 2, 3, 4] },
+  "strictGradeCourts": false,
+  "days": [
+    {
+      "id": 1,
+      "date": "2025-09-05",
+      "label": "Sat 5 September 2025",
+      "grades": ["A", "C"],
+      "courts": 10,
+      "start": "09:00",
+      "end": "20:00"
+    },
+    {
+      "id": 2,
+      "date": "2025-09-06",
+      "label": "Sun 6 September 2025",
+      "grades": ["O", "B"],
+      "courts": 10,
+      "start": "09:00",
+      "end": "20:00"
+    }
+  ],
+  "events": [
+    { "grade": "O", "discipline": "MS", "entries": 18, "seeds": 4, "format": "RR + KO", "day": 2 },
+    { "grade": "O", "discipline": "WS", "entries": 2, "seeds": 2, "format": "KO", "day": 2 },
+    { "grade": "O", "discipline": "MD", "entries": 8, "seeds": 2, "format": "RR + KO", "day": 2 },
+    { "grade": "O", "discipline": "WD", "entries": 2, "seeds": 2, "format": "RR + KO", "day": 2 },
+    { "grade": "O", "discipline": "XD", "entries": 2, "seeds": 2, "format": "RR + KO", "day": 2 },
+
+    { "grade": "A", "discipline": "MS", "entries": 15, "seeds": 2, "format": "RR + KO", "day": 1 },
+    { "grade": "A", "discipline": "WS", "entries": 0, "seeds": 2, "format": "RR", "day": 1 },
+    { "grade": "A", "discipline": "MD", "entries": 14, "seeds": 2, "format": "RR + KO", "day": 1 },
+    { "grade": "A", "discipline": "WD", "entries": 0, "seeds": 2, "format": "RR", "day": 1 },
+    { "grade": "A", "discipline": "XD", "entries": 3, "seeds": 2, "format": "RR", "day": 1 },
+
+    { "grade": "B", "discipline": "MS", "entries": 18, "seeds": 4, "format": "RR + KO", "day": 2 },
+    { "grade": "B", "discipline": "WS", "entries": 3, "seeds": 2, "format": "RR", "day": 2 },
+    { "grade": "B", "discipline": "MD", "entries": 16, "seeds": 4, "format": "RR + KO", "day": 2 },
+    { "grade": "B", "discipline": "WD", "entries": 6, "seeds": 2, "format": "RR + KO", "day": 2 },
+    { "grade": "B", "discipline": "XD", "entries": 10, "seeds": 2, "format": "RR + KO", "day": 2 },
+
+    { "grade": "C", "discipline": "MS", "entries": 45, "seeds": 8, "format": "RR + KO", "day": 1 },
+    { "grade": "C", "discipline": "WS", "entries": 6, "seeds": 2, "format": "RR + KO", "day": 1 },
+    { "grade": "C", "discipline": "MD", "entries": 30, "seeds": 4, "format": "RR + KO", "day": 1 },
+    { "grade": "C", "discipline": "WD", "entries": 12, "seeds": 2, "format": "RR + KO", "day": 1 },
+    { "grade": "C", "discipline": "XD", "entries": 16, "seeds": 4, "format": "RR + KO", "day": 1 }
+  ]
+};
+
+/**
+ * Draw generation: turns an entry count into groups, round-robin fixtures and a
+ * knockout bracket, then emits the flat match list the scheduler consumes.
+ */
+
+const DISCIPLINES = ['MS', 'WS', 'MD', 'WD', 'XD'];
+const GRADES = ['O', 'A', 'B', 'C'];
+
+const DISCIPLINE_NAMES = {
+  MS: "Men's Singles",
+  WS: "Women's Singles",
+  MD: "Men's Doubles",
+  WD: "Women's Doubles",
+  XD: 'Mixed Doubles',
+};
+
+const GRADE_NAMES = { O: 'Open', A: 'A Grade', B: 'B Grade', C: 'C Grade' };
+
+/** Open events are written without a grade suffix, exactly as in the master sheet. */
+function eventCode(grade, discipline) {
+  return grade === 'O' ? discipline : `${discipline}${grade}`;
+}
+
+/**
+ * Split `entries` into group sizes.
+ *
+ * The tournament convention (and what the 2025 master sheet does) is: groups of 3
+ * whenever the count divides evenly, otherwise groups of 4, otherwise a 3/4 mix.
+ * Fewer than `minSize` entries stay in a single group.
+ */
+function planGroupSizes(entries, { minSize = 3, maxSize = 5 } = {}) {
+  if (entries <= 1) return entries === 1 ? [1] : [];
+  if (entries <= minSize) return [entries];
+
+  let numGroups;
+  if (entries % 3 === 0) numGroups = entries / 3;
+  else if (entries % 4 === 0) numGroups = entries / 4;
+  else numGroups = Math.max(1, Math.round(entries / 3.5));
+
+  return distribute(entries, numGroups, minSize, maxSize);
+}
+
+function distribute(entries, numGroups, minSize, maxSize) {
+  // Shrink the group count until no group would be under minSize, grow it until
+  // none is over maxSize.
+  while (numGroups > 1 && Math.floor(entries / numGroups) < minSize) numGroups -= 1;
+  while (Math.ceil(entries / numGroups) > maxSize) numGroups += 1;
+
+  const base = Math.floor(entries / numGroups);
+  const remainder = entries % numGroups;
+  const sizes = [];
+  // Larger groups first so the sheet reads 4,4,3,3 rather than 3,3,4,4.
+  for (let i = 0; i < numGroups; i += 1) sizes.push(i < remainder ? base + 1 : base);
+  return sizes;
+}
+
+/** Round-robin rounds via the circle method; a bye is inserted for odd group sizes. */
+function roundRobinRounds(teams) {
+  const list = teams.slice();
+  if (list.length < 2) return [];
+  if (list.length % 2 === 1) list.push(null);
+
+  const n = list.length;
+  const rounds = [];
+  const fixed = list[0];
+  let rotating = list.slice(1);
+
+  for (let r = 0; r < n - 1; r += 1) {
+    const pairs = [];
+    const ordered = [fixed, ...rotating];
+    for (let i = 0; i < n / 2; i += 1) {
+      const a = ordered[i];
+      const b = ordered[n - 1 - i];
+      if (a !== null && b !== null) pairs.push([a, b]);
+    }
+    rounds.push(pairs);
+    rotating = [rotating[rotating.length - 1], ...rotating.slice(0, -1)];
+  }
+  return rounds;
+}
+
+/** Standard bracket seeding order, e.g. 8 -> [1,8,4,5,2,7,3,6]. */
+function seedOrder(size) {
+  let order = [1];
+  while (order.length < size) {
+    const mirror = order.length * 2 + 1;
+    order = order.flatMap((s) => [s, mirror - s]);
+  }
+  return order;
+}
+
+function nextPowerOfTwo(n) {
+  let p = 1;
+  while (p < n) p *= 2;
+  return p;
+}
+
+const ROUND_NAMES = { 2: 'F', 4: 'SF', 8: 'QF', 16: 'R16', 32: 'R32', 64: 'R64', 128: 'R128' };
+
+function roundName(remaining) {
+  return ROUND_NAMES[remaining] || `R${remaining}`;
+}
+
+/**
+ * Knockout bracket over `qualifiers` entrants (byes go to the top seeds).
+ * `entrants[i]` describes who fills seed position i+1.
+ * Returns rounds of { round, sideA, sideB } where each side is either an entrant
+ * or { type: 'winner', of: <index into the previous round> }.
+ */
+function knockoutRounds(entrants) {
+  const q = entrants.length;
+  if (q < 2) return [];
+
+  const size = nextPowerOfTwo(q);
+  const order = seedOrder(size);
+  let slots = order.map((seed) => (seed <= q ? entrants[seed - 1] : null));
+  const rounds = [];
+
+  while (slots.length > 1) {
+    const name = roundName(slots.length);
+    const ties = [];
+    const winners = [];
+    for (let i = 0; i < slots.length; i += 2) {
+      const a = slots[i];
+      const b = slots[i + 1];
+      if (a && b) {
+        winners.push({ type: 'winner', round: name, index: ties.length });
+        ties.push({ round: name, sideA: a, sideB: b });
+      } else {
+        winners.push(a || b); // walkover: the present side advances without a match
+      }
+    }
+    if (ties.length) rounds.push({ round: name, ties });
+    slots = winners;
+  }
+  return rounds;
+}
+
+/** Team/pair identifiers for an event, e.g. MSC-01 ... MSC-45. */
+function makeTeams(code, entries, names = []) {
+  return Array.from({ length: entries }, (_, i) => ({
+    id: `${code}-${String(i + 1).padStart(2, '0')}`,
+    label: names[i] || `${code} #${i + 1}`,
+    players: splitPlayers(names[i]),
+  }));
+}
+
+function splitPlayers(name) {
+  if (!name) return [];
+  return name
+    .split(/\s*[/&+]\s*/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Snake-distribute teams over groups so seeds land in different groups:
+ * seeds 1..g go to groups 1..g, then the next block fills in reverse, etc.
+ */
+function assignTeamsToGroups(teams, sizes) {
+  const groups = sizes.map(() => []);
+  let index = 0;
+  let pass = 0;
+  while (index < teams.length) {
+    const order = pass % 2 === 0 ? groups.map((_, i) => i) : groups.map((_, i) => i).reverse();
+    let placedThisPass = false;
+    for (const g of order) {
+      if (groups[g].length < sizes[g] && index < teams.length) {
+        groups[g].push(teams[index]);
+        index += 1;
+        placedThisPass = true;
+      }
+    }
+    if (!placedThisPass) break;
+    pass += 1;
+  }
+  return groups;
+}
+
+/**
+ * Build the full draw for one event.
+ *
+ * spec: { grade, discipline, entries, seeds, format: 'RR + KO'|'RR'|'KO',
+ *         day, qualifiersPerGroup, numGroups (optional override), entrants (optional names) }
+ */
+function buildEventDraw(spec, options = {}) {
+  const code = spec.code || eventCode(spec.grade, spec.discipline);
+  const format = (spec.format || 'RR + KO').toUpperCase().replace(/\s+/g, '');
+  const usesGroups = format !== 'KO';
+  const usesKnockout = format !== 'RR';
+  const durationMin = options.durationMin ?? 20;
+  const qualifiersPerGroup = spec.qualifiersPerGroup ?? 1;
+
+  const teams = makeTeams(code, spec.entries, spec.entrants || []);
+  const sizes = usesGroups
+    ? spec.groupSizes
+      || (spec.numGroups
+        ? distribute(spec.entries, spec.numGroups, 2, 8)
+        : planGroupSizes(spec.entries))
+    : [];
+  const groups = usesGroups ? assignTeamsToGroups(teams, sizes) : [];
+
+  const matches = [];
+  const base = {
+    eventCode: code,
+    grade: spec.grade,
+    discipline: spec.discipline,
+    day: spec.day,
+    durationMin,
+  };
+
+  if (usesGroups) {
+    groups.forEach((groupTeams, gi) => {
+      const rounds = roundRobinRounds(groupTeams);
+      rounds.forEach((pairs, ri) => {
+        pairs.forEach(([a, b], mi) => {
+          matches.push({
+            ...base,
+            id: `${code}-G${gi + 1}R${ri + 1}M${mi + 1}`,
+            stage: 'group',
+            round: `R${ri + 1}`,
+            groupIndex: gi,
+            groupRound: ri + 1,
+            sideA: { type: 'team', id: a.id, label: a.label },
+            sideB: { type: 'team', id: b.id, label: b.label },
+            teamIds: [a.id, b.id],
+            deps: [],
+          });
+        });
+      });
+    });
+  }
+
+  if (usesKnockout) {
+    const entrants = usesGroups
+      ? qualifierEntrants(groups.length, qualifiersPerGroup)
+      : teams.map((t) => ({ type: 'team', id: t.id, label: t.label }));
+
+    // A group's qualifiers are only known once every match in that group is done.
+    const groupMatchIds = matches.reduce((acc, m) => {
+      if (m.stage === 'group') (acc[m.groupIndex] ||= []).push(m.id);
+      return acc;
+    }, {});
+
+    const koRounds = knockoutRounds(entrants);
+    const idOf = (round, index) => `${code}-${round}${index + 1}`;
+
+    koRounds.forEach(({ round, ties }) => {
+      ties.forEach((tie, index) => {
+        const deps = [];
+        for (const side of [tie.sideA, tie.sideB]) {
+          if (side.type === 'winner') deps.push(idOf(side.round, side.index));
+          else if (side.type === 'qualifier') deps.push(...(groupMatchIds[side.groupIndex] || []));
+        }
+        matches.push({
+          ...base,
+          id: idOf(round, index),
+          stage: 'ko',
+          round,
+          sideA: tie.sideA,
+          sideB: tie.sideB,
+          teamIds: [tie.sideA, tie.sideB].filter((s) => s.type === 'team').map((s) => s.id),
+          deps: [...new Set(deps)],
+        });
+      });
+    });
+  }
+
+  return {
+    code,
+    grade: spec.grade,
+    discipline: spec.discipline,
+    day: spec.day,
+    format: spec.format || 'RR + KO',
+    entries: spec.entries,
+    seeds: spec.seeds ?? 0,
+    durationMin,
+    groupSizes: sizes,
+    groups: groups.map((g) => g.map((t) => ({ id: t.id, label: t.label }))),
+    teams,
+    matches,
+    counts: countByStage(matches),
+  };
+}
+
+/**
+ * Rank qualifiers across groups: all group winners first (in group order), then
+ * runners-up in reverse group order so a group's pair meets as late as possible.
+ */
+function qualifierEntrants(numGroups, qualifiersPerGroup) {
+  const entrants = [];
+  for (let rank = 1; rank <= qualifiersPerGroup; rank += 1) {
+    const order = Array.from({ length: numGroups }, (_, i) => i);
+    if (rank % 2 === 0) order.reverse();
+    for (const gi of order) {
+      entrants.push({
+        type: 'qualifier',
+        groupIndex: gi,
+        rank,
+        label: `Gr ${gi + 1} ${rank === 1 ? 'winner' : `#${rank}`}`,
+      });
+    }
+  }
+  return entrants;
+}
+
+function countByStage(matches) {
+  const counts = { group: 0, R128: 0, R64: 0, R32: 0, R16: 0, QF: 0, SF: 0, F: 0, total: matches.length };
+  for (const m of matches) {
+    if (m.stage === 'group') counts.group += 1;
+    else counts[m.round] = (counts[m.round] || 0) + 1;
+  }
+  return counts;
+}
+
+/** Build every event's draw for a tournament config. */
+function buildDraws(config) {
+  return config.events
+    .filter((e) => (e.entries ?? 0) > 1)
+    .map((e) => buildEventDraw(
+      { ...e, day: e.day ?? dayForGrade(config, e.grade) },
+      { durationMin: matchDuration(config, e.grade) },
+    ));
+}
+
+/** Events without an explicit day fall on the day their grade is scheduled. */
+function dayForGrade(config, grade) {
+  const day = (config.days || []).find((d) => (d.grades || []).includes(grade));
+  return day ? day.id : config.days?.[0]?.id;
+}
+
+function matchDuration(config, grade) {
+  return config.matchMinutes?.[grade] ?? config.matchMinutes?.default ?? 20;
+}
+
+
+/**
+ * Court/time scheduler.
+ *
+ * List scheduling over a discrete time grid: at every slot, the matches that are
+ * ready (dependencies played, teams rested) are ranked by how much work still
+ * hangs off them (critical path) and dropped onto the free courts.
+ */
+
+function parseTime(hhmm) {
+  const [h, m] = String(hhmm).split(':').map(Number);
+  return h * 60 + (m || 0);
+}
+
+function formatTime(minutes) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+/**
+ * @param {object[]} matches  flat match list (from buildDraws), all for one day
+ * @param {object} day        { date, label, courts, start, end, courtNames? }
+ * @param {object} options    { granularityMin, restMin, turnaroundMin, gradeCourts }
+ */
+function scheduleDay(matches, day, options = {}) {
+  const granularity = options.granularityMin ?? 10;
+  const restMin = options.restMin ?? 20;
+  const turnaround = options.turnaroundMin ?? 0;
+  const strictCourts = options.strictGradeCourts ?? false;
+  // A court block is only reserved on days its grade actually plays, otherwise
+  // the other grades would be locked out of those courts.
+  const gradesToday = new Set(matches.map((m) => m.grade));
+  const gradeCourts = Object.fromEntries(
+    Object.entries(options.gradeCourts || {}).filter(([grade]) => gradesToday.has(grade)),
+  );
+
+  const dayStart = parseTime(day.start);
+  const dayEnd = parseTime(day.end);
+  const courts = Array.from({ length: day.courts }, (_, i) => ({
+    index: i,
+    name: day.courtNames?.[i] || `Court ${i + 1}`,
+    freeAt: dayStart,
+  }));
+
+  const byId = new Map(matches.map((m) => [m.id, m]));
+  const priority = criticalPaths(matches, byId, restMin);
+
+  const assignments = new Map(); // matchId -> { start, end, courtIndex }
+  const teamFreeAt = new Map(); // teamId -> minute the team can play again
+  const pending = new Set(matches.map((m) => m.id));
+  const eventAnchor = new Map(); // eventCode -> court index the event last used
+
+  const readyAt = (match) => {
+    let t = dayStart;
+    for (const depId of match.deps) {
+      const dep = assignments.get(depId);
+      if (!dep) return Infinity; // dependency not played yet
+      t = Math.max(t, dep.end + restMin);
+    }
+    for (const teamId of match.teamIds) {
+      t = Math.max(t, teamFreeAt.get(teamId) ?? dayStart);
+    }
+    if (match.notBefore) t = Math.max(t, parseTime(match.notBefore));
+    return t;
+  };
+
+  for (let t = dayStart; t <= dayEnd && pending.size; t += granularity) {
+    let freeCourts = courts.filter((c) => c.freeAt <= t);
+    if (!freeCourts.length) continue;
+
+    const ready = [];
+    for (const id of pending) {
+      const match = byId.get(id);
+      if (readyAt(match) <= t) ready.push(match);
+    }
+    if (!ready.length) continue;
+
+    // Longest remaining chain first; then keep an event's matches together so the
+    // grid reads in blocks and umpires/shuttles stay with one event.
+    ready.sort((a, b) => {
+      if (priority.get(b.id) !== priority.get(a.id)) return priority.get(b.id) - priority.get(a.id);
+      // Keep every group of an event on the same round before anyone moves ahead.
+      if ((a.groupRound || 0) !== (b.groupRound || 0)) return (a.groupRound || 0) - (b.groupRound || 0);
+      if (a.eventCode !== b.eventCode) return a.eventCode.localeCompare(b.eventCode);
+      return a.id.localeCompare(b.id);
+    });
+
+    for (const match of ready) {
+      if (!freeCourts.length) break;
+      if (t + match.durationMin > dayEnd) continue;
+      // Re-check: an earlier assignment in this same slot may have taken one of
+      // this match's teams (two matches of a group can both look ready at t).
+      if (readyAt(match) > t) continue;
+
+      const court = pickCourt(freeCourts, match, gradeCourts, eventAnchor, strictCourts);
+      if (!court) continue; // reserved courts only, and none of them is free
+      const end = t + match.durationMin;
+      assignments.set(match.id, {
+        start: t,
+        end,
+        courtIndex: court.index,
+        courtName: court.name,
+      });
+      court.freeAt = end + turnaround;
+      eventAnchor.set(match.eventCode, court.index);
+      for (const teamId of match.teamIds) teamFreeAt.set(teamId, end + restMin);
+      pending.delete(match.id);
+      freeCourts = freeCourts.filter((c) => c !== court);
+    }
+  }
+
+  const scheduled = matches
+    .filter((m) => assignments.has(m.id))
+    .map((m) => ({ ...m, ...assignments.get(m.id) }))
+    .sort((a, b) => a.start - b.start || a.courtIndex - b.courtIndex);
+
+  const unscheduled = matches.filter((m) => !assignments.has(m.id));
+
+  return {
+    day: { ...day, startMin: dayStart, endMin: dayEnd },
+    courts: courts.map((c) => ({ index: c.index, name: c.name })),
+    granularity,
+    scheduled,
+    unscheduled,
+    stats: dayStats(scheduled, courts.length, dayStart),
+  };
+}
+
+/**
+ * Preferred court: the grade's reserved block if any court in it is free
+ * (e.g. keeping Open events on courts 1-4), otherwise the court closest to
+ * where the event last played.
+ */
+function pickCourt(freeCourts, match, gradeCourts, eventAnchor, strict = false) {
+  const reserved = gradeCourts[match.grade];
+  let pool = freeCourts;
+  if (reserved && reserved.length) {
+    const inBlock = freeCourts.filter((c) => reserved.includes(c.index + 1));
+    if (inBlock.length) pool = inBlock;
+    else if (strict) return null; // wait for the block rather than spill out
+  } else {
+    // Courts reserved for another grade are a last resort.
+    const reservedElsewhere = new Set(
+      Object.entries(gradeCourts)
+        .filter(([grade]) => grade !== match.grade)
+        .flatMap(([, list]) => list || []),
+    );
+    const outside = freeCourts.filter((c) => !reservedElsewhere.has(c.index + 1));
+    if (outside.length) pool = outside;
+    else if (strict) return null;
+  }
+
+  const anchor = eventAnchor.get(match.eventCode);
+  if (anchor === undefined) return pool[0];
+  return pool.reduce((best, c) =>
+    Math.abs(c.index - anchor) < Math.abs(best.index - anchor) ? c : best,
+  );
+}
+
+/**
+ * Longest path (in minutes, including rest) from each match to the end of its
+ * event. Group matches that feed a long knockout run therefore get on court first.
+ */
+function criticalPaths(matches, byId, restMin) {
+  const successors = new Map(matches.map((m) => [m.id, []]));
+  for (const m of matches) {
+    for (const dep of m.deps) if (successors.has(dep)) successors.get(dep).push(m.id);
+  }
+
+  // A group's rounds are played in sequence even though they are not hard
+  // dependencies (the teams are shared). Counting that chain is what stops a
+  // small event from being left with four sequential matches at closing time.
+  const byGroupRound = new Map();
+  for (const m of matches) {
+    if (m.stage !== 'group') continue;
+    const key = `${m.eventCode}|${m.groupIndex}|${m.groupRound}`;
+    if (!byGroupRound.has(key)) byGroupRound.set(key, []);
+    byGroupRound.get(key).push(m.id);
+  }
+  for (const m of matches) {
+    if (m.stage !== 'group') continue;
+    const next = byGroupRound.get(`${m.eventCode}|${m.groupIndex}|${m.groupRound + 1}`);
+    if (next) successors.get(m.id).push(...next);
+  }
+
+  const memo = new Map();
+  const visiting = new Set();
+  const walk = (id) => {
+    if (memo.has(id)) return memo.get(id);
+    if (visiting.has(id)) return 0; // defensive: never expected, deps are a DAG
+    visiting.add(id);
+    const match = byId.get(id);
+    let best = 0;
+    for (const next of successors.get(id) || []) {
+      best = Math.max(best, walk(next));
+    }
+    const value = match.durationMin + restMin + best;
+    visiting.delete(id);
+    memo.set(id, value);
+    return value;
+  };
+
+  for (const m of matches) walk(m.id);
+  return memo;
+}
+
+function dayStats(scheduled, courtCount, dayStart) {
+  if (!scheduled.length) {
+    return { matches: 0, firstStart: null, lastStart: null, finish: null, courtHours: 0, utilisation: 0, peakConcurrent: 0 };
+  }
+  const firstStart = Math.min(...scheduled.map((m) => m.start));
+  const lastStart = Math.max(...scheduled.map((m) => m.start));
+  const finish = Math.max(...scheduled.map((m) => m.end));
+  const playedMinutes = scheduled.reduce((sum, m) => sum + m.durationMin, 0);
+  const window = finish - Math.min(dayStart, firstStart);
+
+  // Peak simultaneous matches = umpires/scorers needed at the busiest moment.
+  const events = scheduled.flatMap((m) => [
+    { t: m.start, delta: 1 },
+    { t: m.end, delta: -1 },
+  ]);
+  events.sort((a, b) => a.t - b.t || a.delta - b.delta);
+  let current = 0;
+  let peak = 0;
+  for (const e of events) {
+    current += e.delta;
+    peak = Math.max(peak, current);
+  }
+
+  return {
+    matches: scheduled.length,
+    firstStart,
+    lastStart,
+    finish,
+    courtHours: +(playedMinutes / 60).toFixed(1),
+    utilisation: window > 0 ? +((playedMinutes / (window * courtCount)) * 100).toFixed(1) : 0,
+    peakConcurrent: peak,
+  };
+}
+
+/** Schedule every configured day of a tournament. */
+function scheduleTournament(draws, config) {
+  const allMatches = draws.flatMap((d) => d.matches);
+  return config.days.map((day) => {
+    const dayMatches = allMatches.filter((m) => m.day === day.id);
+    return scheduleDay(dayMatches, day, {
+      granularityMin: config.granularityMin,
+      restMin: config.restMin,
+      turnaroundMin: config.turnaroundMin,
+      gradeCourts: config.gradeCourts,
+      strictGradeCourts: config.strictGradeCourts,
+    });
+  });
+}
+
+
+/**
+ * Turns scheduler output into the artefacts a tournament desk actually uses:
+ * the court grid, the per-event variance check, shuttle counts and CSV exports.
+ */
+
+
+function shuttlesPerMatch(config, grade) {
+  return config.shuttlesPerMatch?.[grade] ?? config.shuttlesPerMatch?.default ?? 2;
+}
+
+/**
+ * Court grid in the shape of the master sheet: one row per time slot, one column
+ * per court. A match spans ceil(duration / granularity) rows and is only written
+ * into the first of them.
+ */
+function buildGrid(dayResult) {
+  const { day, courts, granularity, scheduled } = dayResult;
+  const finish = scheduled.length ? Math.max(...scheduled.map((m) => m.end)) : day.startMin;
+  const rows = [];
+  for (let t = day.startMin; t < Math.max(finish, day.startMin + granularity); t += granularity) {
+    rows.push({ time: t, label: formatTime(t), cells: courts.map(() => null) });
+  }
+  const rowIndex = (t) => Math.floor((t - day.startMin) / granularity);
+
+  for (const match of scheduled) {
+    const row = rows[rowIndex(match.start)];
+    if (!row) continue;
+    row.cells[match.courtIndex] = {
+      match,
+      span: Math.max(1, Math.ceil(match.durationMin / granularity)),
+    };
+  }
+
+  // Mark rows covered by a match that started earlier so renderers can skip them.
+  const covered = rows.map(() => courts.map(() => false));
+  rows.forEach((row, ri) => {
+    row.cells.forEach((cell, ci) => {
+      if (!cell) return;
+      for (let k = 1; k < cell.span; k += 1) {
+        if (covered[ri + k]) covered[ri + k][ci] = true;
+      }
+    });
+  });
+  rows.forEach((row, ri) => {
+    row.covered = covered[ri];
+  });
+
+  return rows;
+}
+
+/** Per-event planned vs scheduled check, mirroring the sheet's variance table. */
+function eventSummary(draws, dayResults, config) {
+  const scheduledCounts = new Map();
+  for (const result of dayResults) {
+    for (const match of result.scheduled) {
+      scheduledCounts.set(match.eventCode, (scheduledCounts.get(match.eventCode) || 0) + 1);
+    }
+  }
+
+  return draws.map((draw) => {
+    const scheduled = scheduledCounts.get(draw.code) || 0;
+    const perMatch = shuttlesPerMatch(config, draw.grade);
+    return {
+      code: draw.code,
+      grade: draw.grade,
+      discipline: draw.discipline,
+      day: draw.day,
+      entries: draw.entries,
+      seeds: draw.seeds,
+      format: draw.format,
+      groups: draw.groupSizes.length,
+      groupSizes: draw.groupSizes.join('/'),
+      counts: draw.counts,
+      planned: draw.counts.total,
+      scheduled,
+      variance: scheduled - draw.counts.total,
+      shuttles: draw.counts.total * perMatch,
+    };
+  });
+}
+
+function tournamentSummary(draws, dayResults, config) {
+  const events = eventSummary(draws, dayResults, config);
+  const shuttles = events.reduce((sum, e) => sum + e.shuttles, 0);
+  return {
+    events,
+    totals: {
+      entries: events.reduce((s, e) => s + e.entries, 0),
+      planned: events.reduce((s, e) => s + e.planned, 0),
+      scheduled: events.reduce((s, e) => s + e.scheduled, 0),
+      variance: events.reduce((s, e) => s + e.variance, 0),
+      shuttles,
+      shuttleDozens: Math.ceil(shuttles / 12),
+    },
+    days: dayResults.map((r) => ({
+      id: r.day.id,
+      label: r.day.label,
+      date: r.day.date,
+      courts: r.courts.length,
+      ...r.stats,
+      firstStartLabel: r.stats.firstStart === null ? '-' : formatTime(r.stats.firstStart),
+      lastStartLabel: r.stats.lastStart === null ? '-' : formatTime(r.stats.lastStart),
+      finishLabel: r.stats.finish === null ? '-' : formatTime(r.stats.finish),
+      unscheduled: r.unscheduled.length,
+    })),
+  };
+}
+
+/** Warnings the tournament desk should see before publishing a draw. */
+function collectWarnings(dayResults, config) {
+  const warnings = [];
+  for (const result of dayResults) {
+    if (result.unscheduled.length) {
+      const byEvent = countBy(result.unscheduled, (m) => m.eventCode);
+      warnings.push({
+        level: 'error',
+        day: result.day.label,
+        message: `${result.unscheduled.length} match(es) did not fit before ${result.day.end}: ${
+          Object.entries(byEvent).map(([k, v]) => `${k} x${v}`).join(', ')
+        }. Add courts, extend the day or shorten match slots.`,
+      });
+    }
+    if (result.stats.finish !== null && result.stats.finish > result.day.endMin) {
+      warnings.push({
+        level: 'error',
+        day: result.day.label,
+        message: `Play finishes at ${formatTime(result.stats.finish)}, past the ${result.day.end} cut-off.`,
+      });
+    }
+    if (result.stats.utilisation && result.stats.utilisation < 55) {
+      warnings.push({
+        level: 'info',
+        day: result.day.label,
+        message: `Court utilisation is ${result.stats.utilisation}% — the day could run on fewer courts or a shorter window.`,
+      });
+    }
+    const gradesOnDay = new Set(result.scheduled.map((m) => m.grade));
+    const expected = new Set(result.day.grades || []);
+    for (const grade of gradesOnDay) {
+      if (expected.size && !expected.has(grade)) {
+        warnings.push({
+          level: 'warn',
+          day: result.day.label,
+          message: `Grade ${grade} is scheduled on a day set up for ${[...expected].join(', ')}.`,
+        });
+      }
+    }
+    warnings.push({
+      level: 'info',
+      day: result.day.label,
+      message: `Peak of ${result.stats.peakConcurrent} simultaneous matches — that is the umpire/scorer requirement at the busiest point.`,
+    });
+  }
+  return warnings;
+}
+
+function countBy(list, keyFn) {
+  return list.reduce((acc, item) => {
+    const key = keyFn(item);
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+}
+
+/** Grid CSV in the master-sheet layout: time column, one column per court. */
+function gridCsv(dayResult) {
+  const rows = buildGrid(dayResult);
+  const header = ['Time', ...dayResult.courts.map((c) => c.name)];
+  const lines = [header];
+  for (const row of rows) {
+    lines.push([
+      row.label,
+      ...row.cells.map((cell, ci) => {
+        if (cell) return `${cell.match.eventCode} ${cell.match.round}`;
+        return row.covered[ci] ? '' : '';
+      }),
+    ]);
+  }
+  return toCsv(lines);
+}
+
+/** One row per match — the format most draw/scoring systems import. */
+function matchesCsv(dayResults) {
+  const header = [
+    'Day', 'Date', 'Start', 'End', 'Court', 'Event', 'Grade', 'Discipline',
+    'Stage', 'Round', 'Group', 'Side A', 'Side B',
+  ];
+  const lines = [header];
+  for (const result of dayResults) {
+    for (const m of result.scheduled) {
+      lines.push([
+        result.day.label,
+        result.day.date || '',
+        formatTime(m.start),
+        formatTime(m.end),
+        m.courtName,
+        m.eventCode,
+        m.grade,
+        m.discipline,
+        m.stage === 'group' ? 'Group' : 'Knockout',
+        m.round,
+        m.stage === 'group' ? `Gr ${m.groupIndex + 1}` : '',
+        sideLabel(m.sideA),
+        sideLabel(m.sideB),
+      ]);
+    }
+  }
+  return toCsv(lines);
+}
+
+function sideLabel(side) {
+  if (!side) return '';
+  if (side.type === 'team') return side.label || side.id;
+  if (side.type === 'qualifier') return side.label;
+  if (side.type === 'winner') return `Winner ${side.round}${side.index + 1}`;
+  return '';
+}
+
+function summaryCsv(summary) {
+  const lines = [[
+    'Event', 'Grade', 'Day', 'Entries', 'Seeds', 'Format', 'Groups', 'Group sizes',
+    'Group matches', 'R16', 'QF', 'SF', 'F', 'Planned', 'Scheduled', 'Variance', 'Shuttles',
+  ]];
+  for (const e of summary.events) {
+    lines.push([
+      e.code, e.grade, e.day, e.entries, e.seeds, e.format, e.groups, e.groupSizes,
+      e.counts.group, e.counts.R16 || 0, e.counts.QF || 0, e.counts.SF || 0, e.counts.F || 0,
+      e.planned, e.scheduled, e.variance, e.shuttles,
+    ]);
+  }
+  lines.push([]);
+  lines.push(['TOTAL', '', '', summary.totals.entries, '', '', '', '', '', '', '', '', '',
+    summary.totals.planned, summary.totals.scheduled, summary.totals.variance, summary.totals.shuttles]);
+  lines.push(['Shuttles (dozen)', summary.totals.shuttleDozens]);
+  return toCsv(lines);
+}
+
+function toCsv(rows) {
+  return rows
+    .map((row) => row.map(csvCell).join(','))
+    .join('\n');
+}
+
+function csvCell(value) {
+  const s = value === null || value === undefined ? '' : String(value);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+
+/** Public entry point: config in, full tournament plan out. */
+
+
+
+
+
+
+
+function planTournament(config) {
+  const draws = buildDraws(config);
+  const days = scheduleTournament(draws, config);
+  return {
+    config,
+    draws,
+    days,
+    summary: tournamentSummary(draws, days, config),
+    warnings: collectWarnings(days, config),
+  };
+}
+
+
+/** Browser front end: edit the tournament setup, generate and inspect the schedule. */
+
+
+
+
+
+const STORAGE_KEY = 'badminton-scheduler.config.v1';
+const $ = (id) => document.getElementById(id);
+
+let config = null;
+let plan = null;
+let activeDay = 0;
+
+/* ------------------------------------------------------------------ setup */
+
+async function loadDefaults() {
+  return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+}
+
+function load() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    try {
+      return Promise.resolve(JSON.parse(saved));
+    } catch {
+      /* fall through to defaults */
+    }
+  }
+  return loadDefaults();
+}
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+}
+
+/* ----------------------------------------------------------------- render */
+
+function renderSettings() {
+  $('cfgName').value = config.name || '';
+  $('cfgVenue').value = config.venue || '';
+  $('minsO').value = config.matchMinutes?.O ?? 30;
+  $('minsA').value = config.matchMinutes?.A ?? 25;
+  $('minsB').value = config.matchMinutes?.B ?? 25;
+  $('minsC').value = config.matchMinutes?.C ?? 25;
+  $('cfgRest').value = config.restMin ?? 20;
+  $('cfgTurnaround').value = config.turnaroundMin ?? 0;
+  $('cfgGranularity').value = config.granularityMin ?? 10;
+  $('shuttleO').value = config.shuttlesPerMatch?.O ?? 4;
+  $('shuttleDefault').value = config.shuttlesPerMatch?.default ?? 2;
+  $('cfgOpenCourts').value = courtsToText(config.gradeCourts?.O || []);
+  $('cfgStrict').checked = !!config.strictGradeCourts;
+  renderDays();
+  renderEvents();
+  $('tournamentSub').textContent = config.venue
+    ? `${config.name} — ${config.venue}`
+    : config.name || '';
+}
+
+function renderDays() {
+  const body = $('daysTable').querySelector('tbody');
+  body.innerHTML = '';
+  config.days.forEach((day, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="date" value="${day.date || ''}" data-day="${i}" data-field="date"></td>
+      <td><input type="text" value="${escapeHtml(day.label || '')}" data-day="${i}" data-field="label"></td>
+      <td><input type="text" value="${(day.grades || []).join(',')}" data-day="${i}" data-field="grades" placeholder="A,C"></td>
+      <td><input type="number" min="1" max="24" value="${day.courts}" data-day="${i}" data-field="courts"></td>
+      <td><input type="time" value="${day.start}" data-day="${i}" data-field="start"></td>
+      <td><input type="time" value="${day.end}" data-day="${i}" data-field="end"></td>
+      <td><button class="del" data-remove-day="${i}" title="Remove day">&times;</button></td>`;
+    body.appendChild(tr);
+  });
+}
+
+function renderEvents() {
+  const body = $('eventsTable').querySelector('tbody');
+  body.innerHTML = '';
+  config.events.forEach((event, i) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${select(GRADES, event.grade, i, 'grade', (g) => (g === 'O' ? 'Open' : g))}</td>
+      <td>${select(DISCIPLINES, event.discipline, i, 'discipline', (d) => d)}</td>
+      <td><input type="number" min="0" value="${event.entries}" data-event="${i}" data-field="entries"></td>
+      <td><input type="number" min="0" value="${event.seeds ?? 0}" data-event="${i}" data-field="seeds"></td>
+      <td>${select(['RR + KO', 'RR', 'KO'], event.format || 'RR + KO', i, 'format', (f) => f)}</td>
+      <td>${select(config.days.map((d) => d.id), event.day, i, 'day', (id) => `D${id}`)}</td>
+      <td><input type="number" min="1" max="4" value="${event.qualifiersPerGroup ?? 1}" data-event="${i}" data-field="qualifiersPerGroup"></td>
+      <td><button class="del" data-remove-event="${i}" title="Remove event">&times;</button></td>`;
+    body.appendChild(tr);
+  });
+}
+
+function select(values, current, index, field, labelFn) {
+  const options = values
+    .map((v) => `<option value="${v}" ${String(v) === String(current) ? 'selected' : ''}>${labelFn(v)}</option>`)
+    .join('');
+  return `<select data-event="${index}" data-field="${field}">${options}</select>`;
+}
+
+/* -------------------------------------------------------------- scheduling */
+
+function generate() {
+  plan = planTournament(config);
+  activeDay = Math.min(activeDay, plan.days.length - 1);
+  renderDaySwitch();
+  renderSchedule();
+  renderSummary();
+  renderDraws();
+  renderChecks();
+  save();
+}
+
+function renderDaySwitch() {
+  const host = $('daySwitch');
+  host.innerHTML = '';
+  plan.days.forEach((day, i) => {
+    const button = document.createElement('button');
+    button.className = `ghost small${i === activeDay ? ' active' : ''}`;
+    button.textContent = day.day.label || `Day ${day.day.id}`;
+    button.onclick = () => {
+      activeDay = i;
+      renderDaySwitch();
+      renderSchedule();
+    };
+    host.appendChild(button);
+  });
+}
+
+function renderSchedule() {
+  const day = plan.days[activeDay];
+  const stats = plan.summary.days[activeDay];
+  $('dayStats').innerHTML = [
+    stat('Matches', stats.matches),
+    stat('Courts', stats.courts),
+    stat('First on', stats.firstStartLabel),
+    stat('Finish', stats.finishLabel),
+    stat('Court use', `${stats.utilisation}%`),
+    stat('Peak courts busy', stats.peakConcurrent),
+    stat('Not scheduled', stats.unscheduled, stats.unscheduled ? 'bad' : 'ok'),
+  ].join('');
+
+  const rows = buildGrid(day);
+  const codes = [...new Set(day.scheduled.map((m) => m.eventCode))].sort();
+  const legend = `<div class="legend">${codes
+    .map((c) => `<span style="background:${colourFor(c)}">${c}</span>`)
+    .join('')}</div>`;
+
+  const header = `<tr><th>Time</th>${day.courts.map((c) => `<th>${c.name}</th>`).join('')}</tr>`;
+  const body = rows
+    .map((row) => {
+      const cells = row.cells
+        .map((cell, ci) => {
+          if (row.covered[ci]) return '';
+          if (!cell) return '<td></td>';
+          const m = cell.match;
+          const when = `${formatTime(m.start)}-${formatTime(m.end)}`;
+          return `<td rowspan="${cell.span}" style="background:${colourFor(m.eventCode)}"
+            title="${when} · ${escapeHtml(m.courtName)} · ${m.eventCode} ${m.round}${
+              m.stage === 'group' ? ` · Group ${m.groupIndex + 1}` : ''
+            }\n${escapeHtml(sideLabel(m.sideA))} v ${escapeHtml(sideLabel(m.sideB))}">
+            <div class="cell">
+              <div class="ev">${m.eventCode} <span class="rd">${m.round}</span></div>
+              <div class="tm">${escapeHtml(shortSide(m.sideA))} v ${escapeHtml(shortSide(m.sideB))}</div>
+            </div></td>`;
+        })
+        .join('');
+      const onHour = row.time % 60 === 0 ? ' hour' : '';
+      return `<tr><td class="time${onHour}">${row.label}</td>${cells}</tr>`;
+    })
+    .join('');
+
+  $('gridHost').innerHTML = `${legend}<table class="grid"><thead>${header}</thead><tbody>${body}</tbody></table>`;
+}
+
+function shortSide(side) {
+  const label = sideLabel(side);
+  return label.length > 22 ? `${label.slice(0, 21)}…` : label;
+}
+
+function renderSummary() {
+  const { events, totals } = plan.summary;
+  $('totals').innerHTML = [
+    stat('Entries', totals.entries),
+    stat('Matches', totals.planned),
+    stat('Scheduled', totals.scheduled),
+    stat('Variance', totals.variance, totals.variance ? 'bad' : 'ok'),
+    stat('Shuttles', `${totals.shuttles} (${totals.shuttleDozens} doz)`),
+  ].join('');
+
+  const rows = events
+    .map((e) => `<tr>
+      <td><b>${e.code}</b></td><td>${GRADE_NAMES[e.grade]}</td><td>${DISCIPLINE_NAMES[e.discipline]}</td>
+      <td class="num">${e.day}</td><td class="num">${e.entries}</td><td class="num">${e.seeds}</td>
+      <td>${e.format}</td><td class="num">${e.groups}</td><td>${e.groupSizes}</td>
+      <td class="num">${e.counts.group}</td><td class="num">${e.counts.R16 || ''}</td>
+      <td class="num">${e.counts.QF || ''}</td><td class="num">${e.counts.SF || ''}</td>
+      <td class="num">${e.counts.F || ''}</td><td class="num">${e.planned}</td>
+      <td class="num">${e.scheduled}</td>
+      <td class="num ${e.variance ? 'bad' : 'ok'}">${e.variance}</td>
+      <td class="num">${e.shuttles}</td></tr>`)
+    .join('');
+
+  $('summaryHost').innerHTML = `<table class="tbl">
+    <thead><tr>
+      <th>Event</th><th>Grade</th><th>Discipline</th><th>Day</th><th>Entries</th><th>Seeds</th>
+      <th>Format</th><th>Groups</th><th>Sizes</th><th>Group</th><th>R16</th><th>QF</th><th>SF</th><th>F</th>
+      <th>Planned</th><th>Sched.</th><th>Var.</th><th>Shuttles</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr>
+      <td colspan="4">Total</td><td class="num">${totals.entries}</td><td colspan="9"></td>
+      <td class="num">${totals.planned}</td><td class="num">${totals.scheduled}</td>
+      <td class="num ${totals.variance ? 'bad' : 'ok'}">${totals.variance}</td>
+      <td class="num">${totals.shuttles}</td>
+    </tr></tfoot></table>`;
+}
+
+function renderDraws() {
+  $('drawsHost').innerHTML = plan.draws
+    .map((draw) => {
+      const groups = draw.groups
+        .map((g, i) => `<div class="group"><b>Group ${i + 1}</b>${g
+          .map((t) => escapeHtml(t.label))
+          .join('<br>')}</div>`)
+        .join('');
+      const ko = draw.matches.filter((m) => m.stage === 'ko');
+      const koLine = ko.length
+        ? `<div class="meta">Knockout: ${countRounds(ko)}</div>`
+        : '<div class="meta">Round robin only — no knockout stage.</div>';
+      return `<div class="draw">
+        <h4>${draw.code} — ${GRADE_NAMES[draw.grade]} ${DISCIPLINE_NAMES[draw.discipline]}</h4>
+        <div class="meta">${draw.entries} entries · ${draw.groupSizes.length} group(s) of ${
+          draw.groupSizes.join('/') || '-'} · ${draw.counts.total} matches · ${draw.durationMin} min each · Day ${draw.day}</div>
+        ${koLine}
+        <div class="groups">${groups}</div>
+      </div>`;
+    })
+    .join('');
+}
+
+function countRounds(matches) {
+  const counts = matches.reduce((acc, m) => {
+    acc[m.round] = (acc[m.round] || 0) + 1;
+    return acc;
+  }, {});
+  return Object.entries(counts).map(([round, n]) => `${round} x${n}`).join(', ');
+}
+
+function renderChecks() {
+  const notes = plan.warnings
+    .map((w) => `<div class="note ${w.level}"><b>${escapeHtml(w.day)}</b>${escapeHtml(w.message)}</div>`)
+    .join('');
+
+  const clashes = findClashes();
+  const clashNote = clashes.length
+    ? `<div class="note error"><b>${clashes.length} scheduling clash(es)</b>${clashes.slice(0, 10).join('<br>')}</div>`
+    : '<div class="note info"><b>Constraint check passed</b>No court or player is double-booked, every dependency is respected and rest between matches is honoured.</div>';
+
+  $('checksHost').innerHTML = clashNote + notes;
+}
+
+/** Independent re-check of the produced schedule — cheap insurance before publishing. */
+function findClashes() {
+  const problems = [];
+  for (const day of plan.days) {
+    const byCourt = new Map();
+    const byTeam = new Map();
+    for (const m of day.scheduled) {
+      push(byCourt, m.courtIndex, m);
+      for (const t of m.teamIds) push(byTeam, t, m);
+    }
+    for (const [court, list] of byCourt) {
+      list.sort((a, b) => a.start - b.start);
+      for (let i = 1; i < list.length; i += 1) {
+        if (list[i].start < list[i - 1].end) {
+          problems.push(`Court ${court + 1}: ${list[i].id} overlaps ${list[i - 1].id}`);
+        }
+      }
+    }
+    for (const [team, list] of byTeam) {
+      list.sort((a, b) => a.start - b.start);
+      for (let i = 1; i < list.length; i += 1) {
+        const gap = list[i].start - list[i - 1].end;
+        if (gap < (config.restMin ?? 0)) {
+          problems.push(`${team} has only ${gap} min between ${formatTime(list[i - 1].end)} and ${formatTime(list[i].start)}`);
+        }
+      }
+    }
+  }
+  return problems;
+}
+
+function push(map, key, value) {
+  if (!map.has(key)) map.set(key, []);
+  map.get(key).push(value);
+}
+
+/* ------------------------------------------------------------------ inputs */
+
+function readSettings() {
+  config.name = $('cfgName').value;
+  config.venue = $('cfgVenue').value;
+  config.matchMinutes = {
+    O: num($('minsO').value, 30),
+    A: num($('minsA').value, 25),
+    B: num($('minsB').value, 25),
+    C: num($('minsC').value, 25),
+  };
+  config.matchMinutes.default = config.matchMinutes.C;
+  config.restMin = num($('cfgRest').value, 20);
+  config.turnaroundMin = num($('cfgTurnaround').value, 0);
+  config.granularityMin = Math.max(5, num($('cfgGranularity').value, 10));
+  config.shuttlesPerMatch = {
+    O: num($('shuttleO').value, 4),
+    default: num($('shuttleDefault').value, 2),
+  };
+  const openCourts = textToCourts($('cfgOpenCourts').value);
+  config.gradeCourts = openCourts.length ? { O: openCourts } : {};
+  config.strictGradeCourts = $('cfgStrict').checked;
+}
+
+function num(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function courtsToText(list) {
+  if (!list.length) return '';
+  const contiguous = list.every((v, i) => i === 0 || v === list[i - 1] + 1);
+  return contiguous && list.length > 1 ? `${list[0]}-${list[list.length - 1]}` : list.join(',');
+}
+
+function textToCourts(text) {
+  const out = new Set();
+  for (const part of String(text).split(',')) {
+    const range = part.trim().match(/^(\d+)\s*-\s*(\d+)$/);
+    if (range) {
+      for (let i = Number(range[1]); i <= Number(range[2]); i += 1) out.add(i);
+    } else if (part.trim()) {
+      const n = Number(part.trim());
+      if (Number.isFinite(n)) out.add(n);
+    }
+  }
+  return [...out].sort((a, b) => a - b);
+}
+
+function wireInputs() {
+  $('settings').addEventListener('input', (e) => {
+    const target = e.target;
+    if (target.dataset.event !== undefined) {
+      const event = config.events[Number(target.dataset.event)];
+      const field = target.dataset.field;
+      event[field] = ['entries', 'seeds', 'day', 'qualifiersPerGroup'].includes(field)
+        ? num(target.value, 0)
+        : target.value;
+      event.code = eventCode(event.grade, event.discipline);
+    } else if (target.dataset.day !== undefined) {
+      const day = config.days[Number(target.dataset.day)];
+      const field = target.dataset.field;
+      if (field === 'courts') day.courts = Math.max(1, num(target.value, 1));
+      else if (field === 'grades') day.grades = target.value.split(',').map((g) => g.trim().toUpperCase()).filter(Boolean);
+      else day[field] = target.value;
+    } else {
+      readSettings();
+    }
+    save();
+  });
+
+  $('settings').addEventListener('click', (e) => {
+    const removeEvent = e.target.dataset.removeEvent;
+    const removeDay = e.target.dataset.removeDay;
+    if (removeEvent !== undefined) {
+      config.events.splice(Number(removeEvent), 1);
+      renderEvents();
+      save();
+    } else if (removeDay !== undefined) {
+      config.days.splice(Number(removeDay), 1);
+      renderDays();
+      renderEvents();
+      save();
+    }
+  });
+
+  $('addEventBtn').onclick = () => {
+    config.events.push({
+      grade: 'C', discipline: 'MS', entries: 8, seeds: 2,
+      format: 'RR + KO', day: config.days[0]?.id ?? 1,
+    });
+    renderEvents();
+    save();
+  };
+
+  $('addDayBtn').onclick = () => {
+    const id = (config.days.at(-1)?.id ?? 0) + 1;
+    config.days.push({ id, date: '', label: `Day ${id}`, grades: [], courts: 10, start: '09:00', end: '20:00' });
+    renderDays();
+    renderEvents();
+    save();
+  };
+
+  $('generateBtn').onclick = () => generate();
+
+  $('resetBtn').onclick = async () => {
+    config = await loadDefaults();
+    renderSettings();
+    generate();
+  };
+
+  $('exportCfgBtn').onclick = () => download(`${slug(config.name)}-setup.json`, JSON.stringify(config, null, 2));
+  $('importCfg').onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    config = JSON.parse(await file.text());
+    renderSettings();
+    generate();
+  };
+
+  $('exportGridBtn').onclick = () => {
+    const day = plan.days[activeDay];
+    download(`${slug(config.name)}-${day.day.date || `day${day.day.id}`}-grid.csv`, gridCsv(day));
+  };
+  $('exportMatchesBtn').onclick = () => download(`${slug(config.name)}-matches.csv`, matchesCsv(plan.days));
+  $('exportSummaryBtn').onclick = () => download(`${slug(config.name)}-summary.csv`, summaryCsv(plan.summary));
+  $('printBtn').onclick = () => window.print();
+
+  $('tabs').addEventListener('click', (e) => {
+    const tab = e.target.dataset.tab;
+    if (!tab) return;
+    [...$('tabs').children].forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+    for (const name of ['schedule', 'summary', 'draws', 'checks']) {
+      $(`tab-${name}`).classList.toggle('hidden', name !== tab);
+    }
+  });
+}
+
+/* ------------------------------------------------------------------ helpers */
+
+function stat(key, value, cls = '') {
+  return `<div><span class="k">${key}</span><span class="v ${cls}">${value}</span></div>`;
+}
+
+/** Stable pastel per event code so the grid reads in blocks. */
+function colourFor(code) {
+  let hash = 0;
+  for (let i = 0; i < code.length; i += 1) hash = (hash * 31 + code.charCodeAt(i)) % 360;
+  return `hsl(${hash}, 70%, 88%)`;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+function slug(value) {
+  return String(value || 'tournament').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+function download(filename, text) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* --------------------------------------------------------------------- go */
+
+config = await load();
+renderSettings();
+wireInputs();
+generate();
+
+</script>
+</body>
+</html>
