@@ -457,13 +457,51 @@ function slug(value) {
   return String(value || 'tournament').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
-function download(filename, text) {
-  const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+function toast(message) {
+  const host = $('toast');
+  host.textContent = message;
+  host.classList.remove('hidden');
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => host.classList.add('hidden'), 3500);
+}
+
+/**
+ * Save a generated file. Hosted pages hand the file to the viewer through the
+ * downloads capability; a plain browser tab gets an ordinary link download.
+ */
+async function download(filename, text) {
+  const host = typeof window.claude?.use === 'function'
+    ? await window.claude.use('downloads').catch(() => null)
+    : null;
+
+  if (!host) {
+    const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+    return;
+  }
+
+  try {
+    await host.save({ filename, data: text });
+    toast(`Saved ${filename}`);
+  } catch (error) {
+    if (error?.code === 'declined') return;
+    if (error?.code === 'extension_not_enabled') {
+      // CSV is not always available here; the same text saves fine as .txt.
+      const fallback = filename.replace(/\.csv$/, '.txt');
+      try {
+        await host.save({ filename: fallback, data: text });
+        toast(`Saved ${fallback} — rename it to .csv to open in a spreadsheet`);
+        return;
+      } catch (retryError) {
+        if (retryError?.code === 'declined') return;
+      }
+    }
+    toast(`Could not save ${filename}: ${error?.message || 'unknown error'}`);
+  }
 }
 
 /* --------------------------------------------------------------------- go */

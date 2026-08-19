@@ -20,7 +20,9 @@ npm test             # constraint + regression tests
 
 Or open `dist/badminton-scheduler.html` directly in a browser — that build is one
 self-contained file with no server, no network and no dependencies. Rebuild it
-with `node build.js` after changing anything under `src/` or `web/`.
+with `node build.js` after changing anything under `src/` or `web/`
+(`dist/badminton-scheduler.embed.html` is the same page without the document
+shell, for hosts that supply their own).
 
 Export a plan from the command line:
 

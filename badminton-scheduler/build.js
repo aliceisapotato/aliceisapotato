@@ -44,3 +44,15 @@ fs.mkdirSync(path.join(root, 'dist'), { recursive: true });
 const out = path.join(root, 'dist', 'badminton-scheduler.html');
 fs.writeFileSync(out, html);
 console.log(`Wrote ${out} (${(html.length / 1024).toFixed(0)} KB)`);
+
+// Same page without the document shell, for hosts that supply their own
+// <!doctype>/<head>/<body> wrapper.
+const embedded = html
+  .replace(/<!doctype html>\s*/i, '')
+  .replace(/<\/?html[^>]*>\s*/gi, '')
+  .replace(/<\/?head>\s*/gi, '')
+  .replace(/<\/?body>\s*/gi, '')
+  .replace(/<meta[^>]*>\s*/gi, '');
+const embedOut = path.join(root, 'dist', 'badminton-scheduler.embed.html');
+fs.writeFileSync(embedOut, embedded);
+console.log(`Wrote ${embedOut} (${(embedded.length / 1024).toFixed(0)} KB)`);
