@@ -218,6 +218,17 @@
     border-radius: var(--radius); padding: 12px 14px; margin-bottom: 16px;
   }
   .banner .spacer { flex: 1; }
+  .score-bar { display: flex; align-items: center; gap: 7px; }
+  .score-bar .bar { flex: 1; min-width: 46px; }
+  .score-bar b { font: 600 12.5px var(--mono); font-variant-numeric: tabular-nums; min-width: 26px; text-align: right; }
+  .why { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
+  .why span {
+    font: 500 10.5px var(--sans); padding: 1px 6px; border-radius: 3px;
+    background: var(--surface-2); border: 1px solid var(--border); color: var(--text-dim);
+  }
+  .why span.plus { background: var(--ok-soft); border-color: transparent; color: var(--ok); }
+  .why span.minus { background: var(--warn-soft); border-color: transparent; color: var(--warn); }
+  .quote { font-size: 12px; color: var(--text-dim); font-style: italic; max-width: 40ch; }
   .banner strong { color: var(--accent-ink); }
 
   .stat-row { display: flex; gap: 26px; flex-wrap: wrap; }
@@ -287,6 +298,7 @@
   <div class="brand"><span class="dot"></span><h1>Shift Ledger</h1></div>
   <nav class="tabs" role="tablist">
     <button role="tab" data-tab="schedule" aria-selected="true">Schedule</button>
+    <button role="tab" data-tab="eoi" aria-selected="false">EOI intake</button>
     <button role="tab" data-tab="people" aria-selected="false">People</button>
     <button role="tab" data-tab="shifts" aria-selected="false">Shifts</button>
     <button role="tab" data-tab="reports" aria-selected="false">Reports</button>
@@ -332,6 +344,65 @@
     </div>
   </section>
 
+  <!-- ============ EOI INTAKE ============ -->
+  <section class="panel" id="panel-eoi">
+    <div class="card">
+      <header><h2>1 · Paste the EOI responses</h2><div class="spacer"></div>
+        <button class="btn sm" id="eoiSampleBtn">Load a sample</button>
+        <button class="btn sm" id="eoiFileBtn">Upload CSV</button>
+        <input type="file" id="eoiFile" accept=".csv,.tsv,text/csv,text/tab-separated-values" hidden>
+      </header>
+      <p class="small muted" style="margin:0 0 10px">
+        Open the responses sheet, select all the rows including the header, copy, and paste below.
+        Tab-separated (straight from a spreadsheet) and comma-separated both work.
+      </p>
+      <textarea id="eoiText" rows="6" placeholder="Timestamp&#9;Email Address&#9;Full name&#9;Contact number&#9;Person type&#9;…" style="width:100%;font-family:var(--mono);font-size:12px"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="btn primary" id="eoiParseBtn">Read submissions</button>
+        <button class="btn" id="eoiClearBtn">Clear</button>
+        <span class="small muted" id="eoiParseNote"></span>
+      </div>
+    </div>
+
+    <div class="card" id="eoiMapCard" hidden>
+      <header><h2>2 · Check the column mapping</h2><div class="spacer"></div>
+        <span class="small muted">Auto-detected from the header row — change anything that looks wrong.</span>
+      </header>
+      <div id="eoiMap" class="grid-2" style="gap:10px 18px"></div>
+    </div>
+
+    <div class="card" id="eoiReviewCard" hidden>
+      <header><h2>3 · Review and roster</h2><div class="spacer"></div>
+        <label class="field" style="flex-direction:row;align-items:center;gap:6px">Show
+          <select id="eoiFilter">
+            <option value="">Everyone</option>
+            <option value="recommend">Recommended only</option>
+            <option value="monash">Monash students</option>
+            <option value="full">Full day, both days</option>
+            <option value="strong">Strong experience</option>
+            <option value="issue">Needs a look</option>
+          </select>
+        </label>
+        <button class="btn sm" id="eoiPromptBtn" title="Copy a prompt for a deeper read of the free-text answers">Copy Claude prompt</button>
+        <button class="btn sm" id="eoiApplyBtn" title="Paste Claude's JSON back in">Apply Claude result</button>
+        <button class="btn primary sm" id="eoiImportBtn">Add selected to roster</button>
+      </header>
+      <div id="eoiStats" class="stat-row" style="margin-bottom:14px"></div>
+      <div id="eoiPrefNote" class="banner" style="margin-bottom:14px"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th style="width:28px"><input type="checkbox" id="eoiAll" checked title="Select all"></th>
+            <th>Applicant</th><th>Availability</th><th>Experience</th>
+            <th>Suggested roles</th><th style="width:120px">Priority</th>
+          </tr></thead>
+          <tbody id="eoiBody"></tbody>
+        </table>
+      </div>
+      <div id="eoiEmpty" class="empty" hidden>Nothing matches that filter.</div>
+    </div>
+  </section>
+
   <!-- ============ PEOPLE ============ -->
   <section class="panel" id="panel-people">
     <div class="grid-2">
@@ -345,40 +416,39 @@
             <label class="field" style="flex:2 1 180px">Name
               <input type="text" id="personName" required placeholder="Priya Raman">
             </label>
-            <label class="field" style="flex:1 1 130px">Type
+            <label class="field" style="flex:1 1 140px">Type
               <select id="personType">
                 <option value="volunteer">Volunteer</option>
-                <option value="staff">Staff</option>
+                <option value="workforce">Workforce</option>
               </select>
             </label>
           </div>
           <div class="row">
-            <label class="field" style="flex:2 1 200px">Contact
-              <input type="text" id="personContact" placeholder="email or phone">
+            <label class="field" style="flex:2 1 200px">Email
+              <input type="email" id="personEmail" placeholder="name@example.com">
             </label>
-            <label class="field" style="flex:1 1 130px">Max hours / day
-              <input type="number" id="personMax" min="0" max="14" step="0.5" value="8">
+            <label class="field" style="flex:1 1 160px">Phone
+              <input type="text" id="personPhone" inputmode="tel" placeholder="04xx xxx xxx">
+            </label>
+            <label class="field" style="flex:1 1 120px">Max hrs / day
+              <input type="number" id="personMax" min="0" max="14" step="0.5" value="10">
             </label>
           </div>
-          <label class="field">Roles they can cover
-            <input type="text" id="personRoles" placeholder="Umpire, Match Control (comma separated)">
-            <span class="small muted" id="roleHint"></span>
-          </label>
           <div>
-            <label class="field" style="margin-bottom:6px">Available days</label>
-            <div class="day-toggle" id="personDays"></div>
+            <label class="field" style="margin-bottom:6px">Roles they can cover</label>
+            <div class="row" style="align-items:center;gap:6px">
+              <select id="personRoleSelect" style="flex:1 1 200px"></select>
+              <button class="btn sm" type="button" id="personRoleAdd">Add role</button>
+            </div>
+            <div id="personRoleChips" class="row" style="gap:5px;margin-top:8px"></div>
+          </div>
+          <div>
+            <label class="field" style="margin-bottom:6px">Availability</label>
+            <div id="personAvail" style="display:flex;flex-direction:column;gap:8px"></div>
           </div>
           <div>
             <label class="field" style="margin-bottom:6px">Venues they can work</label>
             <div class="day-toggle" id="personVenues"></div>
-          </div>
-          <div class="row">
-            <label class="field" style="flex:1 1 130px">Not before
-              <input type="time" id="personFrom" value="07:45">
-            </label>
-            <label class="field" style="flex:1 1 130px">Not after
-              <input type="time" id="personTo" value="19:00">
-            </label>
           </div>
           <label class="field">Notes
             <textarea id="personNotes" placeholder="Accreditation, preferences, anything worth remembering"></textarea>
@@ -395,7 +465,7 @@
           <input type="text" id="peopleSearch" placeholder="Search roster" style="max-width:170px">
         </header>
         <div id="bulkBox" hidden style="margin-bottom:14px;display:flex;flex-direction:column;gap:8px">
-          <label class="field">One volunteer per line — add roles after a comma
+          <label class="field">One person per line — add roles after a comma
             <textarea id="bulkText" rows="5" placeholder="Priya Raman, Umpire, Match Control&#10;Tom Nguyen, Booth support&#10;Sam Wu"></textarea>
           </label>
           <div class="row">
@@ -539,9 +609,11 @@
 /* =========================================================
    Storage
    ========================================================= */
-const KEY = "shift-scheduler.v3";
+const KEY = "shift-scheduler.v4";
 const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const DOW_LONG = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+const TYPE_LABEL = { volunteer: "Volunteer", workforce: "Workforce" };
+const TIER_CLASS = { strong: "ok", some: "warn", none: "" };
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
 let db;
@@ -624,6 +696,35 @@ function overlaps(a, b) {
   const [s1, e1] = shiftRange(a), [s2, e2] = shiftRange(b);
   return s1 < e2 && s2 < e1;
 }
+/* Availability is per event day: a person has a window on a day, or is not
+   available that day at all. The EOI form offers full day / morning /
+   afternoon, which map onto these windows. */
+function availPresets() {
+  return {
+    full: { from: db.event.bumpIn, to: db.event.bumpOut, label: "Full day" },
+    am:   { from: db.event.bumpIn, to: "14:00",          label: "Half day — morning" },
+    pm:   { from: "14:00",         to: db.event.bumpOut, label: "Half day — afternoon" }
+  };
+}
+function availOn(person, date) {
+  const w = person.avail && person.avail[date];
+  return w && w.from && w.to ? w : null;
+}
+function availDays(person) { return eventDays().filter(d => availOn(person, d)); }
+function availKind(person, date) {
+  const w = availOn(person, date);
+  if (!w) return "none";
+  const P = availPresets();
+  for (const [k, v] of Object.entries(P)) if (v.from === w.from && v.to === w.to) return k;
+  return "custom";
+}
+function availLabel(person, date) {
+  const k = availKind(person, date);
+  if (k === "none") return "not available";
+  if (k === "custom") { const w = availOn(person, date); return `${w.from}–${w.to}`; }
+  return { full: "full day", am: "morning", pm: "afternoon" }[k];
+}
+
 /* The person in charge of a shift. Kept as an id on the shift so it survives
    re-ordering of the assigned list. */
 function picOf(shift) {
@@ -641,11 +742,13 @@ function evaluate(person, shift) {
   const hard = [], soft = [];
   if (person.roles.length && !person.roles.includes(shift.role)) hard.push(`Not signed up for ${shift.role}`);
   if (person.venues.length && !person.venues.includes(shift.venue)) hard.push(`Not rostered at ${venueName(shift.venue)}`);
-  if (!person.days.includes(shift.date)) hard.push(`Not available ${DOW_LONG[dowOf(shift.date)]}`);
+
+  const win = availOn(person, shift.date);
+  if (!win) hard.push(`Not available ${DOW_LONG[dowOf(shift.date)]}`);
 
   const [a, b] = shiftRange(shift);
-  if (a < toMin(person.from)) hard.push(`Starts before their ${pretty(person.from)} earliest`);
-  if (b > toMin(person.to)) hard.push(`Ends after their ${pretty(person.to)} latest`);
+  if (win && a < toMin(win.from)) hard.push(`Starts before their ${pretty(win.from)} earliest`);
+  if (win && b > toMin(win.to)) hard.push(`Ends after their ${pretty(win.to)} latest`);
 
   const clash = db.shifts.find(s => s.id !== shift.id && s.assigned.includes(person.id) && overlaps(s, shift));
   if (clash) hard.push(`Already on ${clash.role} ${pretty(clash.start)}–${pretty(clash.end)}`);
@@ -922,7 +1025,7 @@ function openShift(id) {
       el("div", {},
         el("div", { class: "name" }, p.name),
         el("div", { class: "small muted" },
-          [...v.hard, ...v.soft].join(" · ") || `${hoursOnDay(p.id, s.date).toFixed(1)}h that day${p.contact ? " · " + p.contact : ""}`)
+          [...v.hard, ...v.soft].join(" · ") || `${hoursOnDay(p.id, s.date).toFixed(1)}h that day${p.phone ? " · " + p.phone : ""}`)
       ),
       el("div", { class: "spacer" }),
       v.hard.length ? el("span", { class: "chip bad" }, "conflict") : v.soft.length ? el("span", { class: "chip warn" }, "long day") : null,
@@ -950,7 +1053,11 @@ function openShift(id) {
       el("div", {},
         el("div", { class: "name" }, c.p.name),
         el("div", { class: "small muted" },
-          c.v.hard[0] || c.v.soft[0] || `${c.load.toFixed(1)}h booked that day`)
+          c.v.hard[0] || c.v.soft[0] || `${c.load.toFixed(1)}h booked that day`),
+        c.p.assessment ? el("div", { class: "why" },
+          el("span", { class: c.p.assessment.tier === "strong" ? "plus" : "" }, c.p.assessment.tier + " exp"),
+          c.p.eoi && c.p.eoi.monash ? el("span", { class: "plus" }, "Monash") : null,
+          c.p.assessment.picCandidate ? el("span", { class: "plus" }, "PIC") : null) : null
       ),
       el("div", { class: "spacer" }),
       el("button", {
@@ -992,7 +1099,7 @@ function renderPeople() {
   const body = $("#peopleBody");
   body.textContent = "";
   const list = db.people
-    .filter(p => !q || p.name.toLowerCase().includes(q) || p.roles.join(" ").toLowerCase().includes(q))
+    .filter(p => !q || (p.name + " " + p.roles.join(" ") + " " + (p.email || "")).toLowerCase().includes(q))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   $("#peopleEmpty").hidden = list.length > 0;
@@ -1004,15 +1111,16 @@ function renderPeople() {
     body.append(el("tr", {},
       el("td", {},
         el("div", { style: "font-weight:600" }, p.name),
-        el("div", { class: "small muted" }, [p.type, p.contact].filter(Boolean).join(" · "))
+        el("div", { class: "small muted" }, [TYPE_LABEL[p.type] || p.type, p.email, p.phone].filter(Boolean).join(" · ")),
+        p.assessment ? el("span", { class: "chip " + TIER_CLASS[p.assessment.tier], style: "margin-top:3px" }, p.assessment.tier) : null
       ),
       el("td", {}, p.roles.length
         ? p.roles.map(r => el("span", { class: "chip role", style: "margin:1px 2px 1px 0" }, r))
         : el("span", { class: "small muted" }, "any role")),
       el("td", { class: "small" },
-        el("div", {}, p.days.length ? p.days.map(d => DOW[dowOf(d)]).join(" · ") : el("span", { class: "muted" }, "no days")),
-        el("div", { class: "muted" }, p.venues.length === db.event.venues.length ? "both venues" : p.venues.map(venueName).join(" · ") || "no venue"),
-        el("div", { class: "mono muted" }, `${p.from}–${p.to}`)
+        ...eventDays().map(d => el("div", { class: availOn(p, d) ? "" : "muted" },
+          `${DOW[dowOf(d)]} `, el("span", { class: "muted" }, availLabel(p, d)))),
+        el("div", { class: "muted" }, p.venues.length === db.event.venues.length ? "both venues" : p.venues.map(venueName).join(" · ") || "no venue")
       ),
       el("td", { style: "min-width:120px" },
         el("div", { class: "small" }, `${total.toFixed(1)}h total`),
@@ -1029,18 +1137,89 @@ function renderPeople() {
   }
 }
 
+let editingRoles = [];
+
+function renderRoleChips() {
+  const box = $("#personRoleChips");
+  box.textContent = "";
+  if (!editingRoles.length) {
+    box.append(el("span", { class: "small muted" }, "No roles chosen — they can be put anywhere."));
+    return;
+  }
+  for (const r of editingRoles) {
+    box.append(el("span", { class: "chip role" }, r,
+      el("button", { type: "button", title: "Remove", onclick: () => {
+        editingRoles = editingRoles.filter(x => x !== r); renderRoleChips();
+      } }, "\u00d7")));
+  }
+}
+
+function renderAvailRows(p) {
+  const box = $("#personAvail");
+  box.textContent = "";
+  const P = availPresets();
+  for (const d of eventDays()) {
+    const kind = p ? availKind(p, d) : "full";
+    const w = p ? availOn(p, d) : { from: db.event.bumpIn, to: db.event.bumpOut };
+    const times = el("div", { class: "row", style: "gap:6px;flex:0 0 auto" + (kind === "custom" ? "" : ";display:none") },
+      el("input", { type: "time", class: "av-from", value: (w || P.full).from, style: "width:118px" }),
+      el("input", { type: "time", class: "av-to", value: (w || P.full).to, style: "width:118px" })
+    );
+    const sel = el("select", { class: "av-kind", style: "flex:1 1 190px", onchange: e => {
+      times.style.display = e.target.value === "custom" ? "" : "none";
+    } },
+      el("option", { value: "full" }, P.full.label),
+      el("option", { value: "am" }, P.am.label),
+      el("option", { value: "pm" }, P.pm.label),
+      el("option", { value: "custom" }, "Custom hours"),
+      el("option", { value: "none" }, "Not available")
+    );
+    sel.value = kind;
+    box.append(el("div", { class: "row", "data-date": d, style: "align-items:center;gap:8px" },
+      el("span", { style: "min-width:74px;font-weight:600;font-size:13px" }, `${DOW[dowOf(d)]} ${fromIso(d).getDate()}`),
+      sel, times));
+  }
+}
+
+function readAvailRows() {
+  const out = {};
+  const P = availPresets();
+  for (const row of $$("#personAvail [data-date]")) {
+    const date = row.getAttribute("data-date");
+    const kind = row.querySelector(".av-kind").value;
+    if (kind === "none") continue;
+    if (kind === "custom") {
+      const from = row.querySelector(".av-from").value, to = row.querySelector(".av-to").value;
+      if (from && to && toMin(to) > toMin(from)) out[date] = { from, to };
+    } else {
+      out[date] = { from: P[kind].from, to: P[kind].to };
+    }
+  }
+  return out;
+}
+
+function refreshRoleSelect() {
+  const sel = $("#personRoleSelect");
+  sel.textContent = "";
+  for (const v of db.event.venues) {
+    const g = el("optgroup", { label: v.name });
+    for (const r of v.roles) g.append(el("option", { value: r }, r));
+    sel.append(g);
+  }
+}
+
 function personFormFill(p) {
+  refreshRoleSelect();
   $("#personId").value = p ? p.id : "";
   $("#personName").value = p ? p.name : "";
-  $("#personType").value = p ? p.type : "volunteer";
-  $("#personContact").value = p ? p.contact : "";
-  $("#personMax").value = p ? p.maxHours : 8;
-  $("#personRoles").value = p ? p.roles.join(", ") : "";
-  $("#personFrom").value = p ? p.from : db.event.bumpIn;
-  $("#personTo").value = p ? p.to : db.event.bumpOut;
+  $("#personType").value = p && p.type === "workforce" ? "workforce" : "volunteer";
+  $("#personEmail").value = p ? (p.email || "") : "";
+  $("#personPhone").value = p ? (p.phone || "") : "";
+  $("#personMax").value = p ? p.maxHours : 10;
   $("#personNotes").value = p ? p.notes : "";
-  const days = p ? p.days : eventDays();
-  $$("#personDays input").forEach(i => { i.checked = days.includes(i.value); });
+  editingRoles = p ? [...p.roles] : [];
+  renderRoleChips();
+  renderAvailRows(p);
   const vens = p ? p.venues : db.event.venues.map(v => v.id);
   $$("#personVenues input").forEach(i => { i.checked = vens.includes(i.value); });
   $("#personFormTitle").textContent = p ? `Edit ${p.name}` : "Add person";
@@ -1048,6 +1227,7 @@ function personFormFill(p) {
   $("#personResetBtn").hidden = !p;
   editingPerson = p ? p.id : null;
 }
+
 function editPerson(id) {
   personFormFill(personById(id));
   switchTab("people");
@@ -1089,7 +1269,7 @@ function renderShifts() {
         el("div", { class: "small muted" }, s.assigned.map(id => (personById(id) || {}).name).filter(Boolean).join(", "))
       ),
       el("td", { style: "white-space:nowrap;text-align:right" },
-        el("button", { class: "btn sm", onclick: () => openShift(s.id) }, "Staff"), " ",
+        el("button", { class: "btn sm", onclick: () => openShift(s.id) }, "Assign"), " ",
         el("button", { class: "btn sm", onclick: () => editShift(s.id) }, "Edit"), " ",
         el("button", { class: "btn sm danger", onclick: () => deleteShift(s.id) }, "Delete")
       )
@@ -1225,6 +1405,432 @@ function renderReports() {
   }
 }
 
+
+/* =========================================================
+   EOI intake — parsing, assessment, import
+   =========================================================
+   The EOI is a Google Form. Columns are matched to fields by keyword so the
+   form can be reworded or reordered without breaking the import, and every
+   mapping stays overridable by hand. */
+
+const EOI_FIELDS = [
+  { key: "name",      label: "Full name",            match: [/full name/, /^name$/, /your name/], required: true },
+  { key: "email",     label: "Email address",        match: [/email address/, /^email$/] },
+  { key: "phone",     label: "Contact number",       match: [/contact number/, /phone/, /mobile/] },
+  { key: "type",      label: "Person type",          match: [/person type/, /are you a/, /monash student\b(?!.*email)/] },
+  { key: "student",   label: "Monash student email", match: [/student email/, /monash.*email/] },
+  { key: "availSat",  label: "Availability — Sat 5", match: [/availability.*saturday/, /saturday/] },
+  { key: "availSun",  label: "Availability — Sun 6", match: [/availability.*sunday/, /sunday/] },
+  { key: "experience",label: "Relevant experience",  match: [/relevant experience/, /experience/] },
+  { key: "firstAid",  label: "First Aid",            match: [/first aid/] },
+  { key: "wwcc",      label: "Working with Children",match: [/working with child/, /wwcc/] },
+  { key: "dietary",   label: "Dietary requirements", match: [/dietary/] },
+  { key: "emergency", label: "Emergency contact",    match: [/emergency/] },
+  { key: "heard",     label: "How they heard",       match: [/how did you hear/, /hear about/] },
+  { key: "comments",  label: "Comments",             match: [/comment/] }
+];
+
+let eoiRows = [];        // parsed submissions, each with .assessment
+let eoiHeaders = [];
+let eoiMapping = {};     // field key -> column index (-1 = unmapped)
+
+/* ---- delimited text parsing (handles quoted fields and embedded newlines) ---- */
+function parseDelimited(text) {
+  const raw = text.replace(/\r\n?/g, "\n").trim();
+  if (!raw) return [];
+  const firstLine = raw.slice(0, raw.indexOf("\n") === -1 ? raw.length : raw.indexOf("\n"));
+  const delim = (firstLine.match(/\t/g) || []).length >= (firstLine.match(/,/g) || []).length ? "\t" : ",";
+  const rows = [];
+  let row = [], field = "", quoted = false;
+  for (let i = 0; i < raw.length; i++) {
+    const c = raw[i];
+    if (quoted) {
+      if (c === '"') {
+        if (raw[i + 1] === '"') { field += '"'; i++; }
+        else quoted = false;
+      } else field += c;
+    } else if (c === '"') quoted = true;
+    else if (c === delim) { row.push(field); field = ""; }
+    else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+    else field += c;
+  }
+  row.push(field);
+  if (row.length > 1 || row[0] !== "") rows.push(row);
+  return rows.map(r => r.map(x => x.trim()));
+}
+
+function autoMap(headers) {
+  const used = new Set();
+  const map = {};
+  for (const f of EOI_FIELDS) {
+    let hit = -1;
+    for (const re of f.match) {
+      hit = headers.findIndex((h, i) => !used.has(i) && re.test(h.toLowerCase()));
+      if (hit !== -1) break;
+    }
+    map[f.key] = hit;
+    if (hit !== -1) used.add(hit);
+  }
+  return map;
+}
+
+/* ---- reading individual answers ---- */
+const yes = v => /^(y|yes|true|1)\b/i.test((v || "").trim());
+function availCode(v) {
+  const t = (v || "").toLowerCase();
+  if (/not available|unavailable|^no\b|^n\/a/.test(t)) return "none";
+  if (/full/.test(t)) return "full";
+  if (/morning|\bam\b/.test(t)) return "am";
+  if (/afternoon|\bpm\b/.test(t)) return "pm";
+  return t.trim() ? "full" : "none";
+}
+function isMonash(row) {
+  if (/monash/i.test(row.type || "")) return true;
+  if (/student/i.test(row.type || "") && !/public|non-?monash/i.test(row.type || "")) return true;
+  return /@(student\.)?monash\.edu/i.test(row.student || "") || /@(student\.)?monash\.edu/i.test(row.email || "");
+}
+
+/* ---- experience reading -------------------------------------------------
+   Keyword tiers over the free-text answer. This is a transparent heuristic,
+   not a language model: it is deliberately conservative, and the Claude
+   prompt button exists for a proper read of the wording. */
+const ROLE_SIGNALS = [
+  { role: "Umpire",                re: /umpir|referee|officiat|line judge|score(keep|r)|badminton australia|accredit|tournament official/i },
+  { role: "Match Control",         re: /match control|tournament|draw|schedul|committee|coordinat|manag|supervis|captain|team lead|organis|organiz/i },
+  { role: "Monash Badminton Club", re: /monash badminton|MBC\b|club member|club committee/i },
+  { role: "Check in desk",         re: /reception|front desk|registration|check.?in|admin|customer service|ticket/i },
+  { role: "Snack Area",            re: /hospitality|barista|caf[eé]|food|catering|kitchen|retail|cashier|canteen/i },
+  { role: "Booth support",         re: /booth|stall|expo|promo|marketing|engagement|activation|open day|volunteer(ing|ed)?/i },
+  { role: "Usher",                 re: /usher|marshal|crowd|front of house|event (staff|crew|volunteer)|wayfind|guest/i }
+];
+const SENIOR_RE = /(\d+\s*(\+|plus)?\s*(year|yr)s?)|senior|state|national|lead|head |captain|coach|accredit|certifi|manager|supervis/i;
+
+function readExperience(text) {
+  const t = (text || "").trim();
+  const roles = [];
+  for (const s of ROLE_SIGNALS) if (s.re.test(t)) roles.push(s.role);
+  let tier = "none";
+  if (t && !/^(no|nil|none|n\/?a|-|nope)\b/i.test(t)) {
+    const senior = SENIOR_RE.test(t);
+    tier = (senior || roles.length >= 2 || t.length > 120) ? "strong" : "some";
+  }
+  return { tier, roles };
+}
+
+/* ---- the assessment -----------------------------------------------------
+   Weighted against the stated preferences: Monash students, people who can
+   do a full day, and people with relevant experience. */
+const WEIGHTS = { monash: 25, availability: 35, experience: 30, tickets: 10 };
+
+function assess(row) {
+  const why = [];
+  let score = 0;
+
+  const monash = isMonash(row);
+  if (monash) { score += WEIGHTS.monash; why.push(["plus", "Monash student"]); }
+  else why.push(["", "Public"]);
+
+  const codes = eventDays().map(d => row.avail[d] || "none");
+  const fullDays = codes.filter(c => c === "full").length;
+  const halfDays = codes.filter(c => c === "am" || c === "pm").length;
+  const anyDays = fullDays + halfDays;
+  let availPts = 0;
+  if (fullDays === 2) { availPts = WEIGHTS.availability; why.push(["plus", "Full day, both days"]); }
+  else if (fullDays === 1 && halfDays === 1) { availPts = 28; why.push(["plus", "Full day + half day"]); }
+  else if (fullDays === 1) { availPts = 22; why.push(["plus", "Full day, one day"]); }
+  else if (halfDays === 2) { availPts = 14; why.push(["", "Two half days"]); }
+  else if (halfDays === 1) { availPts = 7; why.push(["minus", "One half day only"]); }
+  else why.push(["minus", "No availability"]);
+  score += availPts;
+
+  const exp = readExperience(row.experience);
+  if (exp.tier === "strong") { score += WEIGHTS.experience; why.push(["plus", "Strong experience"]); }
+  else if (exp.tier === "some") { score += 15; why.push(["", "Some experience"]); }
+  else why.push(["minus", "No experience given"]);
+
+  if (yes(row.firstAid)) { score += 6; why.push(["plus", "First Aid"]); }
+  if (yes(row.wwcc)) { score += 4; why.push(["plus", "WWCC"]); }
+
+  let roles = [...exp.roles];
+  if (!roles.length) roles = ["Usher", "Booth support"];
+  // Only the steadiest people should be offered the desk that carries the PIC.
+  const picCandidate = fullDays === 2 && exp.tier === "strong" && /Match Control/.test(roles.join(" "));
+  if (picCandidate) why.push(["plus", "PIC candidate"]);
+
+  const flags = [];
+  if (!anyDays) flags.push("Not available either day");
+  if (!row.name) flags.push("No name given");
+  if (!row.email && !row.phone) flags.push("No contact details");
+  if ((row.dietary || "").trim() && !/^(no|nil|none|n\/?a|-)\b/i.test(row.dietary)) flags.push("Dietary: " + row.dietary);
+  if (!(row.emergency || "").trim()) flags.push("No emergency contact");
+
+  return {
+    score: Math.min(100, Math.round(score)),
+    tier: exp.tier, monash, fullDays, halfDays, roles, picCandidate, why, flags,
+    recommend: anyDays > 0 && score >= 55,
+    source: "rules"
+  };
+}
+
+/* ---- parse → rows ---- */
+function eoiParse(text) {
+  const table = parseDelimited(text);
+  if (table.length < 2) { toast("Need a header row and at least one submission"); return false; }
+  eoiHeaders = table[0];
+  eoiMapping = autoMap(eoiHeaders);
+  eoiRows = table.slice(1).filter(r => r.some(c => c !== "")).map((cells, i) => ({ cells, rid: i }));
+  eoiRebuild();
+  return true;
+}
+
+/* Rebuild the parsed rows from the current column mapping. */
+function eoiRebuild() {
+  const get = (cells, key) => {
+    const i = eoiMapping[key];
+    return i >= 0 && i < cells.length ? cells[i] : "";
+  };
+  for (const r of eoiRows) {
+    for (const f of EOI_FIELDS) r[f.key] = get(r.cells, f.key);
+    r.avail = {};
+    const days = eventDays();
+    r.avail[days[0]] = availCode(r.availSat);
+    if (days[1]) r.avail[days[1]] = availCode(r.availSun);
+    r.assessment = assess(r);
+    if (r.selected === undefined) r.selected = true;
+  }
+  eoiRows.sort((a, b) => b.assessment.score - a.assessment.score || (a.name || "").localeCompare(b.name || ""));
+  renderEoiMap();
+  renderEoiReview();
+}
+
+function renderEoiMap() {
+  const box = $("#eoiMap");
+  box.textContent = "";
+  $("#eoiMapCard").hidden = !eoiRows.length;
+  for (const f of EOI_FIELDS) {
+    const sel = el("select", { onchange: e => { eoiMapping[f.key] = Number(e.target.value); eoiRebuild(); } },
+      el("option", { value: "-1" }, "— not in this sheet —"),
+      ...eoiHeaders.map((h, i) => el("option", { value: String(i) }, h || `Column ${i + 1}`))
+    );
+    sel.value = String(eoiMapping[f.key]);
+    box.append(el("label", { class: "field", style: "flex-direction:row;align-items:center;gap:8px;text-transform:none;letter-spacing:0" },
+      el("span", { style: "flex:0 0 150px;font-size:12px" }, f.label, f.required ? el("b", { style: "color:var(--bad)" }, " *") : null),
+      sel));
+  }
+}
+
+
+function renderEoiReview() {
+  $("#eoiReviewCard").hidden = !eoiRows.length;
+  if (!eoiRows.length) return;
+
+  const f = $("#eoiFilter").value;
+  const pass = r => {
+    const a = r.assessment;
+    if (f === "recommend") return a.recommend;
+    if (f === "monash") return a.monash;
+    if (f === "full") return a.fullDays === 2;
+    if (f === "strong") return a.tier === "strong";
+    if (f === "issue") return a.flags.length > 0;
+    return true;
+  };
+  const shown = eoiRows.filter(pass);
+
+  const all = eoiRows.length;
+  const stat = (k, v) => el("div", { class: "stat" }, el("div", { class: "k" }, k), el("div", { class: "v" }, v));
+  $("#eoiStats").textContent = "";
+  $("#eoiStats").append(
+    stat("Submissions", String(all)),
+    stat("Monash students", String(eoiRows.filter(r => r.assessment.monash).length)),
+    stat("Full day, both", String(eoiRows.filter(r => r.assessment.fullDays === 2).length)),
+    stat("Strong experience", String(eoiRows.filter(r => r.assessment.tier === "strong").length)),
+    stat("Recommended", String(eoiRows.filter(r => r.assessment.recommend).length))
+  );
+
+  const claudeRead = eoiRows.filter(r => r.assessment.source === "claude").length;
+  const note = $("#eoiPrefNote");
+  note.textContent = "";
+  note.append(el("div", {},
+    el("div", {}, el("strong", {}, "Ranked on your stated preferences"), " — Monash students, full-day availability, and relevant experience, in that weighting."),
+    el("div", { class: "small" }, claudeRead
+      ? `${claudeRead} of ${all} assessed by Claude from the wording of their answers; the rest by the built-in rules.`
+      : "Experience is currently read by keyword rules. Use Copy Claude prompt for a proper read of the free-text answers.")
+  ));
+
+  const body = $("#eoiBody");
+  body.textContent = "";
+  $("#eoiEmpty").hidden = shown.length > 0;
+
+  for (const r of shown) {
+    const a = r.assessment;
+    body.append(el("tr", { "data-rid": String(r.rid) },
+      el("td", {}, el("input", {
+        type: "checkbox", checked: r.selected,
+        onchange: e => { r.selected = e.target.checked; }
+      })),
+      el("td", {},
+        el("div", { style: "font-weight:600" }, r.name || el("span", { class: "muted" }, "(no name)")),
+        el("div", { class: "small muted" }, [r.email, r.phone].filter(Boolean).join(" · ") || "no contact"),
+        el("div", { class: "why" },
+          a.monash ? el("span", { class: "plus" }, "Monash") : el("span", {}, "Public"),
+          yes(r.firstAid) ? el("span", { class: "plus" }, "First Aid") : null,
+          yes(r.wwcc) ? el("span", { class: "plus" }, "WWCC") : null,
+          ...a.flags.map(x => el("span", { class: "minus" }, x))
+        )
+      ),
+      el("td", { class: "small" },
+        ...eventDays().map(d => el("div", {},
+          `${DOW[dowOf(d)]} `,
+          el("span", { class: r.avail[d] === "none" ? "muted" : "" },
+            { full: "full day", am: "morning", pm: "afternoon", none: "—" }[r.avail[d]])))
+      ),
+      el("td", {},
+        el("span", { class: "chip " + TIER_CLASS[a.tier] }, a.tier),
+        a.source === "claude" ? el("span", { class: "chip", style: "margin-left:4px" }, "Claude") : null,
+        r.experience ? el("div", { class: "quote" }, '"' + (r.experience.length > 110 ? r.experience.slice(0, 110) + "…" : r.experience) + '"') : null
+      ),
+      el("td", {},
+        el("div", { class: "why" }, ...a.roles.map(x => el("span", { class: "plus" }, x))),
+        a.picCandidate ? el("div", { class: "small", style: "color:var(--accent-ink);font-weight:600;margin-top:3px" }, "PIC candidate") : null
+      ),
+      el("td", {},
+        el("div", { class: "score-bar" },
+          el("div", { class: "bar" }, el("i", { class: a.score >= 70 ? "ok" : a.score >= 45 ? "warn" : "", style: `width:${a.score}%` })),
+          el("b", {}, String(a.score))),
+        a.recommend ? el("div", { class: "small", style: "color:var(--ok);font-weight:600" }, "recommended") : null
+      )
+    ));
+  }
+}
+
+/* ---- the Claude bridge --------------------------------------------------
+   A published artifact cannot call a language model, so the deeper read of
+   the free-text answers is done by handing a prompt to Claude and pasting
+   the JSON back. Only the answers needed for the judgement are included. */
+function eoiPrompt() {
+  const roles = allRoles();
+  const items = eoiRows.map(r => ({
+    id: r.rid,
+    name: r.name,
+    monash_student: r.assessment.monash,
+    availability: eventDays().map(d => `${DOW[dowOf(d)]}: ${r.avail[d]}`).join(", "),
+    experience: r.experience || "",
+    comments: r.comments || ""
+  }));
+  return `You are helping roster volunteers for a two-day badminton event.
+
+Venues and roles available:
+${db.event.venues.map(v => `- ${v.name} (${v.subtitle}): ${v.roles.join(", ")}`).join("\n")}
+
+Rostering preferences, most important first:
+1. Monash students
+2. People available for a full day
+3. People with genuinely relevant experience
+
+For each applicant below, judge ONLY the "experience" and "comments" free text.
+Rate their experience as "strong", "some", or "none", and suggest which of these
+roles suits them: ${roles.join(", ")}.
+Mark pic_candidate true only for someone who could run Match Control as the
+person in charge — that needs real event, officiating or leadership experience.
+
+Return ONLY a JSON array, no prose, in this exact shape:
+[{"id":0,"tier":"strong","roles":["Umpire"],"pic_candidate":false,"note":"one short line"}]
+
+Applicants:
+${JSON.stringify(items, null, 1)}`;
+}
+
+function eoiApplyClaude(text) {
+  let data;
+  try {
+    const m = text.match(/\[[\s\S]*\]/);
+    data = JSON.parse(m ? m[0] : text);
+    if (!Array.isArray(data)) throw new Error("not an array");
+  } catch (e) { toast("That is not the JSON array Claude was asked for"); return; }
+
+  let n = 0;
+  for (const item of data) {
+    const r = eoiRows.find(x => x.rid === item.id);
+    if (!r) continue;
+    const a = r.assessment;
+    // Re-score with Claude's read of the experience replacing the keyword tier.
+    const prev = a.tier;
+    if (["strong", "some", "none"].includes(item.tier)) {
+      a.score += ({ strong: WEIGHTS.experience, some: 15, none: 0 }[item.tier]
+                - { strong: WEIGHTS.experience, some: 15, none: 0 }[prev]);
+      a.tier = item.tier;
+    }
+    if (Array.isArray(item.roles) && item.roles.length) a.roles = item.roles.filter(x => allRoles().includes(x));
+    if (!a.roles.length) a.roles = ["Usher", "Booth support"];
+    a.picCandidate = !!item.pic_candidate && a.fullDays === 2;
+    if (item.note) a.note = String(item.note);
+    a.score = Math.max(0, Math.min(100, Math.round(a.score)));
+    a.recommend = a.score >= 55 && (a.fullDays + a.halfDays) > 0;
+    a.source = "claude";
+    a.why = a.why.filter(w => !/experience/i.test(w[1]));
+    a.why.push(["plus", `Claude: ${a.tier} experience`]);
+    n++;
+  }
+  eoiRows.sort((x, y) => y.assessment.score - x.assessment.score || (x.name || "").localeCompare(y.name || ""));
+  renderEoiReview();
+  toast(`Applied Claude's read to ${n} applicant${n === 1 ? "" : "s"}`);
+}
+
+/* ---- import into the roster ---- */
+function eoiImport() {
+  const chosen = eoiRows.filter(r => r.selected && r.name);
+  if (!chosen.length) return toast("Nothing selected to import");
+  const P = availPresets();
+  let added = 0, skipped = 0;
+  for (const r of chosen) {
+    const key = (r.email || "").toLowerCase();
+    if (key && db.people.some(p => (p.email || "").toLowerCase() === key)) { skipped++; continue; }
+    const avail = {};
+    for (const d of eventDays()) {
+      const c = r.avail[d];
+      if (c && c !== "none") avail[d] = { from: P[c].from, to: P[c].to };
+    }
+    if (!Object.keys(avail).length) { skipped++; continue; }
+    db.people.push({
+      id: uid(),
+      name: r.name,
+      type: r.assessment.monash ? "volunteer" : "volunteer",
+      email: r.email || "",
+      phone: r.phone || "",
+      maxHours: r.assessment.fullDays ? 12 : 8,
+      roles: [...r.assessment.roles],
+      venues: db.event.venues.map(v => v.id),
+      avail,
+      eoi: {
+        monash: r.assessment.monash, studentEmail: r.student || "",
+        experience: r.experience || "", firstAid: yes(r.firstAid), wwcc: yes(r.wwcc),
+        dietary: r.dietary || "", emergency: r.emergency || "",
+        heard: r.heard || "", comments: r.comments || ""
+      },
+      assessment: {
+        score: r.assessment.score, tier: r.assessment.tier,
+        picCandidate: r.assessment.picCandidate, source: r.assessment.source,
+        note: r.assessment.note || ""
+      },
+      notes: [r.assessment.note, r.assessment.flags.join("; ")].filter(Boolean).join(" · ")
+    });
+    added++;
+  }
+  save(); renderAll();
+  toast(`Added ${added} to the roster${skipped ? ` · ${skipped} skipped (duplicate or no availability)` : ""}`);
+  if (added) switchTab("people");
+}
+
+const EOI_SAMPLE = [
+  ["Timestamp","Email Address","Full name","Contact number","Person type","Monash student email (if applicable)","Your availability [Saturday 5 September]","Your availability [Sunday 6 September]","Any relevant experience?","Do you have First Aid?","Do you have Working with Children's Check?","Any dietary requirements?","Emergency contact name and phone number","How did you hear about Monash Open?","Any comments"],
+  ["5/08/2026 9:14","j.tan@student.monash.edu","Jasmine Tan","0412 345 678","Monash Student","j.tan@student.monash.edu","Full Day","Full Day","Accredited badminton umpire, 4 years officiating at state tournaments.","Yes","Yes","","Wei Tan 0412 000 111","Monash Sport newsletter",""],
+  ["5/08/2026 9:31","dpark@example.com","Daniel Park","0433 221 100","Public","","Half Day Morning","Not available","Helped run the check-in desk at a school sports carnival.","No","Yes","Vegetarian","Sun Park 0400 222 333","Friend",""],
+  ["5/08/2026 10:02","a.silva@student.monash.edu","Ana Silva","0455 667 788","Monash Student","a.silva@student.monash.edu","Full Day","Half Day Afternoon","Monash Badminton Club committee member, ran our intervarsity draw last year.","No","No","","Rosa Silva 0411 888 999","Monash Badminton Club","Happy to help set up early"],
+  ["5/08/2026 10:20","kwong@example.com","Kelvin Wong","0466 112 233","Public","","Not available","Not available","","No","No","","","Instagram","Might be free later, will confirm"],
+  ["5/08/2026 11:47","m.ahmed@student.monash.edu","Mariam Ahmed","0477 334 455","Monash Student","m.ahmed@student.monash.edu","Full Day","Full Day","Barista for two years, comfortable with food handling and busy counters.","Yes","No","Halal","Yusuf Ahmed 0422 555 666","Class announcement",""],
+  ["5/08/2026 12:15","tlee@example.com","Tom Lee","0488 776 655","Public","","Half Day Afternoon","Half Day Afternoon","Played socially for a few years.","No","No","","Amy Lee 0433 111 222","Friend",""]
+].map(r => r.join("\t")).join("\n");
+
 /* =========================================================
    Export
    ========================================================= */
@@ -1278,7 +1884,6 @@ function refreshSelectors() {
   setOpts($("#repDay"), days, "Whole event");
   setOpts($("#shiftVenue"), venues, null);
   setOpts($("#shiftDate"), days, null);
-  $("#roleHint").textContent = "Leave blank if they can be put anywhere. In use: " + allRoles().join(", ");
 }
 
 function renderAll() {
@@ -1290,12 +1895,6 @@ function renderAll() {
 }
 
 function buildToggles() {
-  const dayBox = $("#personDays");
-  dayBox.textContent = "";
-  for (const d of eventDays()) {
-    dayBox.append(el("label", {}, el("input", { type: "checkbox", value: d }),
-      el("span", { style: "width:auto;padding:5px 10px" }, `${DOW[dowOf(d)]} ${fromIso(d).getDate()}`)));
-  }
   const venBox = $("#personVenues");
   venBox.textContent = "";
   for (const v of db.event.venues) {
@@ -1355,21 +1954,24 @@ function wire() {
 
   buildToggles();
 
+  $("#personRoleAdd").onclick = () => {
+    const r = $("#personRoleSelect").value;
+    if (r && !editingRoles.includes(r)) { editingRoles.push(r); renderRoleChips(); }
+  };
   $("#personForm").onsubmit = e => {
     e.preventDefault();
-    const days = $$("#personDays input:checked").map(i => i.value);
+    const avail = readAvailRows();
     const venues = $$("#personVenues input:checked").map(i => i.value);
-    if (!days.length) return toast("Pick at least one day");
+    if (!Object.keys(avail).length) return toast("They need to be available on at least one day");
     if (!venues.length) return toast("Pick at least one venue");
     const data = {
       name: $("#personName").value.trim(),
       type: $("#personType").value,
-      contact: $("#personContact").value.trim(),
+      email: $("#personEmail").value.trim(),
+      phone: $("#personPhone").value.trim(),
       maxHours: Math.max(0, Number($("#personMax").value) || 0),
-      roles: $("#personRoles").value.split(",").map(s => s.trim()).filter(Boolean),
-      days, venues,
-      from: $("#personFrom").value || db.event.bumpIn,
-      to: $("#personTo").value || db.event.bumpOut,
+      roles: [...editingRoles],
+      avail, venues,
       notes: $("#personNotes").value.trim()
     };
     if (editingPerson) { Object.assign(personById(editingPerson), data); toast("Saved"); }
@@ -1395,10 +1997,12 @@ function wire() {
       const [name, ...rest] = line.split(",").map(x => x.trim()).filter(Boolean);
       if (!name) continue;
       for (const r of rest) if (!known.includes(r)) unknown.add(r);
+      const avail = {};
+      for (const d of eventDays()) avail[d] = { from: db.event.bumpIn, to: db.event.bumpOut };
       db.people.push({
-        id: uid(), name, type: "volunteer", contact: "", maxHours: 8,
-        roles: rest, days: [...eventDays()], venues: db.event.venues.map(v => v.id),
-        from: db.event.bumpIn, to: db.event.bumpOut, notes: ""
+        id: uid(), name, type: "volunteer", email: "", phone: "", maxHours: 10,
+        roles: rest, venues: db.event.venues.map(v => v.id), avail,
+        eoi: null, assessment: null, notes: ""
       });
       added++;
     }
@@ -1433,6 +2037,52 @@ function wire() {
     db.shifts = buildRunSheet();
     save(); renderAll(); toast("Run sheet rebuilt");
   };
+
+  // EOI intake
+  $("#eoiParseBtn").onclick = () => {
+    const txt = $("#eoiText").value;
+    if (!txt.trim()) return toast("Paste the responses first");
+    if (eoiParse(txt)) {
+      $("#eoiParseNote").textContent = `${eoiRows.length} submission${eoiRows.length === 1 ? "" : "s"} read from ${eoiHeaders.length} columns`;
+    }
+  };
+  $("#eoiClearBtn").onclick = () => {
+    $("#eoiText").value = ""; $("#eoiParseNote").textContent = "";
+    eoiRows = []; eoiHeaders = []; eoiMapping = {};
+    $("#eoiMapCard").hidden = true; $("#eoiReviewCard").hidden = true;
+  };
+  $("#eoiSampleBtn").onclick = () => { $("#eoiText").value = EOI_SAMPLE; $("#eoiParseBtn").click(); };
+  $("#eoiFileBtn").onclick = () => $("#eoiFile").click();
+  $("#eoiFile").onchange = e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => { $("#eoiText").value = r.result; $("#eoiParseBtn").click(); e.target.value = ""; };
+    r.readAsText(f);
+  };
+  $("#eoiFilter").onchange = renderEoiReview;
+  $("#eoiAll").onchange = e => {
+    for (const r of eoiRows) r.selected = e.target.checked;
+    renderEoiReview();
+  };
+  $("#eoiPromptBtn").onclick = async () => {
+    if (!eoiRows.length) return toast("Read some submissions first");
+    const text = eoiPrompt();
+    try {
+      await navigator.clipboard.writeText(text);
+      toast("Prompt copied — paste it to Claude, then Apply Claude result");
+    } catch (err) {
+      const w = window.open("", "_blank");
+      if (w) { w.document.title = "Claude prompt"; w.document.body.innerText = text; toast("Copy the prompt from the new tab"); }
+      else toast("Could not reach the clipboard");
+    }
+  };
+  $("#eoiApplyBtn").onclick = () => {
+    if (!eoiRows.length) return toast("Read some submissions first");
+    const text = prompt("Paste the JSON array Claude returned:");
+    if (text) eoiApplyClaude(text);
+  };
+  $("#eoiImportBtn").onclick = eoiImport;
 
   // reports
   $("#repDay").onchange = renderReports;
@@ -1624,16 +2274,18 @@ function buildRunSheet() {
 }
 
 function buildRoster() {
+  const full = {};
+  for (const d of EVENT.days) full[d] = { from: EVENT.bumpIn, to: EVENT.bumpOut };
   return NAMED.map(([name, venue, roles]) => ({
-    id: uid(), name, type: "volunteer", contact: "", maxHours: 10,
-    roles, days: [...EVENT.days], venues: [venue],
-    from: EVENT.bumpIn, to: EVENT.bumpOut,
+    id: uid(), name, type: "volunteer", email: "", phone: "", maxHours: 10,
+    roles, venues: [venue], avail: structuredClone(full),
+    eoi: null, assessment: null,
     notes: name === "TBC" ? "Placeholder — replace with a real name once confirmed." : ""
   }));
 }
 
 function seed() {
-  return { event: structuredClone(EVENT), people: buildRoster(), shifts: buildRunSheet(), version: 3, fresh: true };
+  return { event: structuredClone(EVENT), people: buildRoster(), shifts: buildRunSheet(), version: 4, fresh: true };
 }
 
 /* =========================================================

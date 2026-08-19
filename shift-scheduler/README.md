@@ -103,32 +103,101 @@ Umpires.
 
 ## Using it
 
-**1. Add your volunteers.** People tab → *Paste a list*, one per line, roles
-after a comma:
+### 1. EOI intake
 
-```
-Priya Raman, Umpire, Match Control
-Tom Nguyen, Umpire
-Sam Wu
-```
+Open the responses sheet, select everything including the header row, copy, and
+paste it into **EOI intake**. Tab-separated (straight from a spreadsheet) and
+CSV both work, or upload a `.csv`.
 
-Everyone pasted is available both days at both venues with an 8-hour daily
-limit; edit individuals afterwards to narrow their days, venues, roles, hours
-or arrival/departure times. Leave someone's roles blank and they can be put
-anywhere.
+Columns are matched to fields by keyword, so the form can be reworded or
+reordered without breaking the import. Every mapping is shown and overridable
+before anything is read.
 
-**2. Auto-fill event.** Fills every open slot across both days at once. It
-never breaks a hard rule, and it levels the workload by always picking whoever
-has the fewest hours that day. Where the only remaining candidates would go
-over their daily hours, it says how many slots that affects and asks first.
+The fifteen columns of the current form all map automatically:
 
-**3. Fix what's flagged.** The Issues panel lists every gap and conflict live,
-and says whether auto-fill can actually cover each gap. Click a row to jump
-straight to that shift.
+| Form question | Used for |
+|---|---|
+| Full name | name |
+| Email Address | email, and Monash detection |
+| Contact number | phone |
+| Person type | Monash student vs public |
+| Monash student email | Monash detection |
+| Your availability [Saturday 5 September] | Saturday window |
+| Your availability [Sunday 6 September] | Sunday window |
+| Any relevant experience? | experience tier and suggested roles |
+| Do you have First Aid? | priority bonus, shown on the roster |
+| Working with Children's Check | priority bonus, shown on the roster |
+| Any dietary requirements? | flagged for catering |
+| Emergency contact | flagged when missing |
+| How did you hear about Monash Open? | kept on the record |
+| Any comments | read alongside experience |
 
-**4. Hand it out.** **Print** gives a clean two-day board for the noticeboard.
-**CSV** exports one row per shift with the assigned names, for the whole event
-or a single day.
+Availability maps to real windows: **Full Day** → 7.45am–7pm, **Half Day
+Morning** → 7.45am–2pm, **Half Day Afternoon** → 2pm–7pm, **Not available** →
+that day is excluded. Somebody available mornings only can no longer be put on
+an afternoon shift — the scheduler blocks it.
+
+### 2. Reading the submissions
+
+Each applicant is scored out of 100 against your stated preferences:
+
+| Signal | Weight |
+|---|---|
+| Monash student | 25 |
+| Availability — full day both days scores highest, one half day lowest | 35 |
+| Relevant experience — strong / some / none | 30 |
+| First Aid | 6 |
+| Working with Children's Check | 4 |
+
+Every score shows its reasoning as chips, so you can see why somebody ranks
+where they do rather than trusting a number. Suggested roles come from what
+they wrote — an accredited umpire is put up for Umpire, a barista for Snack
+Area, a club committee member for Monash Badminton Club. Someone available both
+full days with strong event or officiating experience is marked a **PIC
+candidate**.
+
+Filters narrow to recommended, Monash students, full-day, strong experience, or
+anyone whose submission needs a look — no availability, no contact details, no
+emergency contact, or a dietary requirement to pass to catering.
+
+Tick who you want and press **Add selected to roster**. People with no
+availability, or an email already on the roster, are skipped rather than
+duplicated.
+
+### 3. The deeper read of free text
+
+The keyword rules are deliberately conservative — they cannot tell "played
+socially for a few years" from "four years officiating at state tournaments"
+as well as a person can.
+
+**A published artifact cannot call a language model**, so this is done by
+handing the work to Claude and bringing the answer back:
+
+1. **Copy Claude prompt** puts a prompt on your clipboard containing each
+   applicant's experience and comments — names and availability, but no phone
+   numbers or emergency contacts.
+2. Paste it into Claude and let it judge the wording.
+3. **Apply Claude result** takes the JSON back, re-tiers each applicant,
+   replaces the suggested roles, re-scores and re-ranks.
+
+Rows assessed this way are badged **Claude**, and the banner tracks how many of
+the submissions have had the deeper read.
+
+### 4. Rostering
+
+**Auto-fill event** staffs both days at once. It never breaks a hard rule and
+levels the workload by always picking whoever has the fewest hours that day.
+Where the only remaining candidates would go over their daily hours, it says how
+many slots that affects and asks first.
+
+The staffing drawer shows each candidate's experience tier, Monash status and
+PIC eligibility, so manual picks have the same information the ranking used.
+
+### 5. Fix what's flagged, then hand it out
+
+The Issues panel lists every gap and conflict live. **Print** gives a clean
+two-day board for the noticeboard; **CSV** exports one row per shift with the
+assigned names, positions and PIC.
 
 ## Scheduling rules
 
@@ -137,8 +206,9 @@ if you assign around them manually:
 
 - the person is signed up for that role (or has no role restriction)
 - the person is rostered at that venue
-- the shift falls on a day they are available
-- the shift fits inside their arrival/departure times
+- they are available that day at all
+- the shift fits inside that day's window — a morning-only person cannot be
+  put on an afternoon shift
 - they are not already on an overlapping shift
 
 Soft constraint — warned about, and only crossed with your confirmation:
@@ -147,7 +217,7 @@ Soft constraint — warned about, and only crossed with your confirmation:
 
 ## Data
 
-Data lives in the browser under the key `shift-scheduler.v2`, so it stays on
+Data lives in the browser under the key `shift-scheduler.v4`, so it stays on
 the machine and survives reloads, but it does **not** sync between browsers,
 devices or people. **Backup** downloads the whole dataset as JSON and
 **Restore** loads it back — that is how you move the schedule to another
