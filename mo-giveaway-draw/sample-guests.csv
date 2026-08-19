@@ -1,0 +1,11 @@
+name,email,approval_status,ticket_name
+Lin Dan,lindan@example.com,approved,General
+Lee Chong Wei,lcw@example.com,approved,General
+Carolina Marín,carolina@example.com,approved,VIP
+Tai Tzu-ying,tai@example.com,approved,General
+Viktor Axelsen,viktor@example.com,approved,VIP
+An Se-young,anseyoung@example.com,approved,General
+Kento Momota,kento@example.com,approved,General
+P. V. Sindhu,sindhu@example.com,approved,General
+Lee Zii Jia,zii@example.com,approved,General
+Akane Yamaguchi,akane@example.com,declined,General

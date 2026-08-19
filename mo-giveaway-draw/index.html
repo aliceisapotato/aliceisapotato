@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MO2026FEST · Giveaway Draw</title>
+<meta name="description" content="Random giveaway draw app for MO2026FEST." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='23' r='5' fill='%231E5BFF'/%3E%3Cpath d='M16 18 L8 4 h16 z' fill='%23fff' stroke='%231E5BFF' stroke-width='1.5' stroke-linejoin='round'/%3E%3C/svg%3E" />
+</head>
+<body>
+<canvas id="confetti" aria-hidden="true"></canvas>
+<div class="court-lines" aria-hidden="true"></div>
+<div class="shuttle-field" id="shuttleField" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <svg class="racquet" viewBox="0 0 64 64" aria-hidden="true">
+      <defs>
+        <pattern id="strings" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(0)">
+          <path d="M6 0 V6 M0 6 H6" stroke="currentColor" stroke-width="0.9" opacity="0.55" fill="none"/>
+        </pattern>
+      </defs>
+      <ellipse cx="26" cy="24" rx="17" ry="21" fill="url(#strings)" stroke="currentColor" stroke-width="3"/>
+      <path d="M36 40 L44 50" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+      <rect x="42" y="46" width="8" height="18" rx="4" transform="rotate(-38 46 55)" fill="currentColor"/>
+    </svg>
+    <div class="brand-text">
+      <span class="brand-title">MO2026FEST</span>
+      <span class="brand-sub">Giveaway Draw</span>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <button class="btn btn-ghost" id="soundBtn" type="button" aria-pressed="true" title="Toggle sound">
+      <span id="soundIcon">🔊</span> Sound
+    </button>
+    <button class="btn btn-ghost" id="stageBtn" type="button" title="Toggle presentation mode (F)">
+      ⛶ Stage mode
+    </button>
+  </div>
+</header>
+
+<main class="layout">
+  <!-- ───────────────────────── Setup panel ───────────────────────── -->
+  <section class="panel panel-setup" id="setupPanel" aria-label="Draw setup">
+    <div class="panel-head">
+      <h2>Entrants</h2>
+      <span class="pill" id="poolPill">0 eligible</span>
+    </div>
+
+    <div class="field">
+      <label for="guestInput">Paste guest list <span class="hint">one per line, or CSV / TSV from the Luma export</span></label>
+      <textarea id="guestInput" rows="7" spellcheck="false"
+        placeholder="Ada Lovelace&#10;Lin Dan, lindan@example.com&#10;P. V. Sindhu&#10;&#10;…or paste the whole Luma CSV, headers and all."></textarea>
+    </div>
+
+    <div class="row">
+      <button class="btn btn-primary" id="addBtn" type="button">Add to pool</button>
+      <button class="btn btn-ghost" id="replaceBtn" type="button">Replace pool</button>
+      <label class="btn btn-ghost file-btn">
+        Import file<input id="fileInput" type="file" accept=".csv,.tsv,.txt" hidden />
+      </label>
+    </div>
+
+    <div class="row row-tight">
+      <label class="check"><input type="checkbox" id="dedupe" checked /> Remove duplicates</label>
+      <label class="check"><input type="checkbox" id="excludeWinners" checked /> Exclude past winners</label>
+    </div>
+
+    <div class="list-head">
+      <input class="search" id="search" type="search" placeholder="Search entrants…" aria-label="Search entrants" />
+      <button class="btn btn-danger-ghost" id="clearBtn" type="button">Clear all</button>
+    </div>
+    <ul class="entrants" id="entrantList" aria-live="polite"></ul>
+
+    <div class="panel-head panel-head-sep">
+      <h2>Prize</h2>
+    </div>
+    <div class="field">
+      <label for="prizeInput">Prize name</label>
+      <input id="prizeInput" type="text" placeholder="e.g. Yonex Astrox 100ZZ" />
+    </div>
+    <div class="field field-inline">
+      <label for="winnerCount">Winners this draw</label>
+      <input id="winnerCount" type="number" min="1" max="50" value="1" />
+    </div>
+  </section>
+
+  <!-- ───────────────────────── Stage ───────────────────────── -->
+  <section class="stage" aria-label="Draw stage">
+    <div class="stage-inner">
+      <p class="stage-prize" id="stagePrize">Set a prize to begin</p>
+
+      <div class="shuttle-stage" id="shuttleStage" aria-hidden="true">
+        <svg viewBox="0 0 120 160" class="shuttle-art">
+          <g class="shuttle-feathers">
+            <path d="M60 96 L18 18 Q60 4 102 18 Z" fill="#F4F8FF" stroke="#0A0E1A" stroke-width="2.5" stroke-linejoin="round"/>
+            <path d="M60 96 L38 12" stroke="#0A0E1A" stroke-width="1.6" opacity=".45"/>
+            <path d="M60 96 L60 6" stroke="#0A0E1A" stroke-width="1.6" opacity=".45"/>
+            <path d="M60 96 L82 12" stroke="#0A0E1A" stroke-width="1.6" opacity=".45"/>
+            <path d="M32 44 Q60 34 88 44" fill="none" stroke="#1E5BFF" stroke-width="3"/>
+            <path d="M42 70 Q60 62 78 70" fill="none" stroke="#1E5BFF" stroke-width="3"/>
+          </g>
+          <path d="M40 96 Q60 88 80 96 L76 128 Q60 140 44 128 Z" fill="#1E5BFF" stroke="#0A0E1A" stroke-width="2.5" stroke-linejoin="round"/>
+          <ellipse cx="60" cy="130" rx="17" ry="9" fill="#0A0E1A"/>
+        </svg>
+      </div>
+
+      <div class="reel" id="reel" role="status" aria-live="assertive">
+        <span class="reel-name" id="reelName">Ready</span>
+      </div>
+      <p class="reel-meta" id="reelMeta">Add entrants to start the draw</p>
+
+      <div class="stage-actions">
+        <button class="btn btn-draw" id="drawBtn" type="button" disabled>
+          <span class="draw-label">Draw</span>
+          <span class="draw-kbd">space</span>
+        </button>
+        <button class="btn btn-ghost" id="redrawBtn" type="button" hidden>Void &amp; redraw</button>
+      </div>
+
+      <ul class="winner-cards" id="winnerCards"></ul>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── Winners panel ───────────────────────── -->
+  <section class="panel panel-winners" id="winnersPanel" aria-label="Winner log">
+    <div class="panel-head">
+      <h2>Winners</h2>
+      <span class="pill" id="winnerPill">0 drawn</span>
+    </div>
+    <ul class="winner-log" id="winnerLog"></ul>
+    <div class="row row-bottom">
+      <button class="btn btn-ghost" id="exportBtn" type="button">Export CSV</button>
+      <button class="btn btn-danger-ghost" id="resetWinnersBtn" type="button">Reset winners</button>
+    </div>
+    <p class="fineprint">
+      Picks use <code>crypto.getRandomValues</code> with rejection sampling — a uniform,
+      unbiased draw, not <code>Math.random</code>.
+    </p>
+  </section>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="app.js"></script>
+</body>
+</html>
