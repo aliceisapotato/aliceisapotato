@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Shift Ledger</title>
+<title>MO Shifts</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -317,7 +317,7 @@
 </head>
 <body>
 <header class="app">
-  <div class="brand"><span class="dot"></span><h1>Shift Ledger</h1></div>
+  <div class="brand"><span class="dot"></span><h1>MO Shifts</h1></div>
   <nav class="tabs" role="tablist">
     <button role="tab" data-tab="schedule" aria-selected="true">Schedule</button>
     <button role="tab" data-tab="eoi" aria-selected="false">EOI intake</button>
@@ -1913,9 +1913,20 @@ function anchorSave(name, text, type) {
   document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+/* True when running inside the artifact viewer rather than from a local file.
+   There, an anchor download is inert, so saying nothing would look broken. */
+const inArtifact = () => typeof claude !== "undefined" && !!claude.use;
+
 async function download(name, text, type = "text/csv") {
   const dl = await getDownloads();
-  if (!dl) { anchorSave(name, text, type); return; }
+  if (!dl) {
+    if (inArtifact()) {
+      toast("Downloads are off on a publicly shared page — open the local copy to export");
+      return;
+    }
+    anchorSave(name, text, type);
+    return;
+  }
   const attempt = async filename => {
     await dl.save({ filename, data: text });
     toast("Saved " + filename);
@@ -2563,7 +2574,7 @@ function wire() {
 
   // backup / restore / theme
   $("#exportJsonBtn").onclick = () =>
-    download(`shift-ledger-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(db, null, 2), "application/json");
+    download(`mo-shifts-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(db, null, 2), "application/json");
   $("#importJsonBtn").onclick = () => $("#importFile").click();
   $("#importFile").onchange = e => {
     const file = e.target.files[0];
@@ -2577,7 +2588,7 @@ function wire() {
         db = data;
         buildToggles(); personFormFill(null); shiftFormFill(null);
         save(); renderAll(); toast("Backup restored");
-      } catch (err) { toast("That file isn't a Shift Ledger backup"); }
+      } catch (err) { toast("That file isn't an MO Shifts backup"); }
       e.target.value = "";
     };
     r.readAsText(file);
