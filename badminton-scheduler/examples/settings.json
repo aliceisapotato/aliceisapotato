@@ -1,0 +1,15 @@
+{
+  "name": "2026 Monash Open",
+  "venue": "",
+  "granularityMin": 10,
+  "restMin": 20,
+  "turnaroundMin": 0,
+  "matchMinutes": { "O": 30, "A": 25, "B": 25, "C": 25 },
+  "shuttlesPerMatch": { "O": 4, "default": 2 },
+  "gradeCourts": { "O": [1, 2, 3, 4] },
+  "strictGradeCourts": false,
+  "days": [
+    { "id": 1, "date": "", "label": "Day 1", "grades": ["A", "C"], "courts": 10, "start": "09:00", "end": "20:00" },
+    { "id": 2, "date": "", "label": "Day 2", "grades": ["O", "B"], "courts": 10, "start": "09:00", "end": "20:00" }
+  ]
+}

@@ -1,0 +1,218 @@
+Event,Group,Player 1,Player 2,Seed,Club
+MS,Group 1,Noor Okafor,,1,RMIT
+MS,Group 1,Uma Costa,,2,RMIT
+MS,Group 1,Hugo Ueda,,3,Melbourne Uni
+MS,Group 1,Wanda Zhao,,4,Box Hill
+MS,Group 2,Jasper Wong,,,Waverley
+MS,Group 2,Greta Costa,,,Monash
+MS,Group 2,Ulla Wong,,,Melbourne Uni
+MS,Group 2,Otto Moreau,,,Deakin
+MS,Group 3,Ulla Alvarez,,,Deakin
+MS,Group 3,Anika Bianchi,,,Melbourne Uni
+MS,Group 3,Ines Patel,,,Box Hill
+MS,Group 3,Zara Nguyen,,,Box Hill
+MS,Group 4,Anika Silva,,,Box Hill
+MS,Group 4,Hana Xu,,,Deakin
+MS,Group 4,Esme Moreau,,,Waverley
+MS,Group 4,Farrah Zhao,,,Box Hill
+WS,Group 1,Yusuf Lim,,1,Monash
+WS,Group 1,Greta Duarte,,2,RMIT
+WS,Group 1,Kaia Tan,,,Monash
+WS,Group 2,Bodhi Abbott,,,RMIT
+WS,Group 2,Lena Vargas,,,Waverley
+WS,Group 2,Viktor Bianchi,,,Waverley
+MD,Group 1,Chen Cheng,Chen Zhao,1,Box Hill
+MD,Group 1,Lena Quirke,Dax Gill,2,Melbourne Uni
+MD,Group 1,Dax Gill,Dmitri Rossi,,Waverley
+MD,Group 1,Dax Quirke,Gemma Abbott,,RMIT
+MD,Group 2,Dmitri Okafor,Celia Eriksen,,Box Hill
+MD,Group 2,Hugo Alvarez,Kian Yilmaz,,Melbourne Uni
+MD,Group 2,Zara Ismail,Kaia Vargas,,Monash
+MD,Group 2,Milo Nguyen,Uma Wong,,Melbourne Uni
+WD,Group 1,Otto Kaur,Gideon Bhatt,1,RMIT
+WD,Group 1,Gideon Bhatt,Kian Gill,2,RMIT
+WD,Group 1,Aiden Eriksen,Dmitri Vargas,,Deakin
+WD,Group 1,Greta Duarte,Zara Okafor,,Deakin
+XD,Group 1,Zara Tan,Amara Eriksen,1,Monash
+XD,Group 1,Nadia Cheng,Elin Tan,2,RMIT
+XD,Group 1,Sana Silva,Priya Quirke,,Box Hill
+XD,Group 1,Uma Tan,Fabio Eriksen,,Melbourne Uni
+XD,Group 2,Cleo Ueda,Boris Vargas,,Box Hill
+XD,Group 2,Gemma Eriksen,Wanda Xu,,Deakin
+XD,Group 2,Dmitri Abbott,Liam Rossi,,Monash
+XD,Group 2,Uma Costa,Kaia Lim,,Melbourne Uni
+MSA,Group 1,Uma Wong,,1,Waverley
+MSA,Group 1,Bodhi Silva,,2,Deakin
+MSA,Group 1,Dax Vargas,,,RMIT
+MSA,Group 2,Sana Quirke,,,Waverley
+MSA,Group 2,Aiden Costa,,,RMIT
+MSA,Group 2,Noor Moreau,,,Box Hill
+MSA,Group 3,Wren Zhao,,,Waverley
+MSA,Group 3,Yusuf Rossi,,,Monash
+MSA,Group 3,Rania Patel,,,Melbourne Uni
+MSA,Group 4,Otto Okafor,,,Monash
+MSA,Group 4,Rhys Vargas,,,Waverley
+MSA,Group 4,Iris Costa,,,RMIT
+MSA,Group 5,Hana Xu,,,Monash
+MSA,Group 5,Bella Rossi,,,Waverley
+MSA,Group 5,Jasper Wong,,,Box Hill
+WSA,Group 1,Kaia Ismail,,1,Box Hill
+WSA,Group 1,Yusuf Eriksen,,2,RMIT
+WSA,Group 1,Gideon Bhatt,,,Melbourne Uni
+WSA,Group 2,Farrah Wong,,,Melbourne Uni
+WSA,Group 2,Viktor Bianchi,,,RMIT
+WSA,Group 2,Farrah Kaur,,,Deakin
+MDA,Group 1,Sana Silva,Gideon Xu,1,Monash
+MDA,Group 1,Dmitri Abbott,Ulla Silva,2,Waverley
+MDA,Group 1,Kian Zhao,Yusuf Abbott,,RMIT
+MDA,Group 2,Chen Duarte,Hana Xu,,Waverley
+MDA,Group 2,Soren Nguyen,Elias Silva,,Waverley
+MDA,Group 2,Finn Alvarez,Cleo Ueda,,Deakin
+MDA,Group 3,Kian Yilmaz,Dmitri Hoang,,Melbourne Uni
+MDA,Group 3,Chen Wong,Wanda Yilmaz,,Monash
+MDA,Group 3,Chen Bhatt,Uma Abbott,,Waverley
+MDA,Group 4,Zara Duarte,Lena Dubois,,Monash
+MDA,Group 4,Farrah Jarvis,Bodhi Vargas,,Melbourne Uni
+MDA,Group 4,Rhys Vargas,Soren Tan,,Box Hill
+WDA,Group 1,Anika Farah,Bella Silva,1,RMIT
+WDA,Group 1,Gideon Vargas,Sana Moreau,2,Deakin
+WDA,Group 1,Ines Alvarez,Noor Silva,,Deakin
+WDA,Group 2,Kaia Tan,Gideon Vargas,,Deakin
+WDA,Group 2,Priya Abbott,Elias Bhatt,,Box Hill
+WDA,Group 2,Priya Vargas,Liam Rossi,,Monash
+XDA,Group 1,Chen Duarte,Gemma Yilmaz,1,RMIT
+XDA,Group 1,Uma Tan,Amara Okafor,2,Deakin
+XDA,Group 1,Yusuf Rossi,Bella Okafor,,Waverley
+XDA,Group 1,Uma Kaur,Amara Eriksen,,Monash
+XDA,Group 2,Ulla Wong,Lena Xu,,Box Hill
+XDA,Group 2,Hana Alvarez,Priya Vargas,,Box Hill
+XDA,Group 2,Gemma Abbott,Soren Dubois,,Box Hill
+XDA,Group 2,Daria Farah,Elin Tan,,Deakin
+MSB,Group 1,Kian Yilmaz,,1,Box Hill
+MSB,Group 1,Fabio Tan,,2,Deakin
+MSB,Group 1,Yusuf Abbott,,3,RMIT
+MSB,Group 2,Maya Rossi,,4,Waverley
+MSB,Group 2,Idris Silva,,,Deakin
+MSB,Group 2,Hector Gill,,,Deakin
+MSB,Group 3,Aiden Duarte,,,Deakin
+MSB,Group 3,Anika Abbott,,,Melbourne Uni
+MSB,Group 3,Sana Ismail,,,Waverley
+MSB,Group 4,Jia Hoang,,,Waverley
+MSB,Group 4,Omar Duarte,,,Monash
+MSB,Group 4,Kaia Nguyen,,,Melbourne Uni
+MSB,Group 5,Rania Patel,,,Box Hill
+MSB,Group 5,Anika Lim,,,RMIT
+MSB,Group 5,Gideon Ismail,,,Monash
+MSB,Group 6,Hugo Farah,,,Waverley
+MSB,Group 6,Anika Bianchi,,,Monash
+MSB,Group 6,Perla Costa,,,Waverley
+WSB,Group 1,Rhys Dubois,,1,RMIT
+WSB,Group 1,Lena Yilmaz,,2,Melbourne Uni
+WSB,Group 1,Amara Moreau,,,Monash
+WSB,Group 2,Kian Gill,,,Melbourne Uni
+WSB,Group 2,Esme Duarte,,,Box Hill
+WSB,Group 2,Chen Jarvis,,,RMIT
+MDB,Group 1,Fabio Tan,Ines Farah,1,Melbourne Uni
+MDB,Group 1,Idris Kaur,Uma Abbott,2,Box Hill
+MDB,Group 1,Bella Rossi,Noor Okafor,3,Monash
+MDB,Group 1,Quinn Abbott,Bodhi Silva,4,Melbourne Uni
+MDB,Group 2,Soren Tan,Lena Quirke,,RMIT
+MDB,Group 2,Perla Costa,Farrah Alvarez,,RMIT
+MDB,Group 2,Hana Bhatt,Anika Bhatt,,RMIT
+MDB,Group 2,Farrah Alvarez,Amara Costa,,Waverley
+MDB,Group 3,Finn Yilmaz,Finn Alvarez,,Deakin
+MDB,Group 3,Anika Okafor,Farrah Vargas,,Waverley
+MDB,Group 3,Hana Gill,Quinn Ueda,,Box Hill
+MDB,Group 3,Hugo Farah,Fabio Jarvis,,Deakin
+MDB,Group 4,Zane Duarte,Cleo Vargas,,Monash
+MDB,Group 4,Liam Ismail,Sana Quirke,,Melbourne Uni
+MDB,Group 4,Noor Moreau,Liam Ismail,,Box Hill
+MDB,Group 4,Wanda Yilmaz,Kaia Vargas,,Monash
+WDB,Group 1,Elias Abbott,Aiden Xu,1,Melbourne Uni
+WDB,Group 1,Soren Duarte,Amara Moreau,2,Waverley
+WDB,Group 1,Lena Duarte,Lena Wong,,Monash
+WDB,Group 2,Jasper Costa,Viktor Bianchi,,Melbourne Uni
+WDB,Group 2,Wren Rossi,Kian Gill,,Monash
+WDB,Group 2,Amara Bhatt,Priya Quirke,,RMIT
+XDB,Group 1,Dmitri Rossi,Quinn Rossi,1,Box Hill
+XDB,Group 1,Xiulan Tan,Rhys Silva,2,Monash
+XDB,Group 1,Fabio Kaur,Chen Patel,,Deakin
+XDB,Group 1,Hugo Alvarez,Chen Dubois,,Melbourne Uni
+XDB,Group 2,Anika Bianchi,Farrah Lim,,RMIT
+XDB,Group 2,Zara Nguyen,Ulla Lim,,Box Hill
+XDB,Group 2,Sana Dubois,Jonah Patel,,RMIT
+XDB,Group 3,Celia Abbott,Iris Farah,,Deakin
+XDB,Group 3,Fabio Costa,Kaia Lim,,RMIT
+XDB,Group 3,Theo Xu,Otto Kaur,,Box Hill
+MSC,Group 1,Sana Dubois,,1,Deakin
+MSC,Group 1,Farrah Zhao,,2,RMIT
+MSC,Group 1,Anika Abbott,,3,Monash
+MSC,Group 2,Anika Lim,,4,Monash
+MSC,Group 2,Sana Rossi,,,RMIT
+MSC,Group 2,Celia Abbott,,,Monash
+MSC,Group 3,Finn Ueda,,,RMIT
+MSC,Group 3,Gemma Eriksen,,,Box Hill
+MSC,Group 3,Lena Dubois,,,Melbourne Uni
+MSC,Group 4,Fabio Tan,,,RMIT
+MSC,Group 4,Dax Silva,,,Deakin
+MSC,Group 4,Anika Okafor,,,Melbourne Uni
+MSC,Group 5,Sana Jarvis,,,RMIT
+MSC,Group 5,Dax Quirke,,,Monash
+MSC,Group 5,Kaia Abbott,,,RMIT
+MSC,Group 6,Wren Tan,,,Deakin
+MSC,Group 6,Hana Rossi,,,Monash
+MSC,Group 6,Otto Tan,,,Monash
+MSC,Group 7,Xiulan Tan,,,Monash
+MSC,Group 7,Gideon Xu,,,Deakin
+MSC,Group 7,Liam Ismail,,,Melbourne Uni
+MSC,Group 8,Cleo Lim,,,Waverley
+MSC,Group 8,Farrah Costa,,,RMIT
+MSC,Group 8,Soren Nguyen,,,RMIT
+WSC,Group 1,Lena Yilmaz,,1,Melbourne Uni
+WSC,Group 1,Lena Vargas,,2,Waverley
+WSC,Group 1,Rhys Moreau,,,RMIT
+WSC,Group 1,Elin Rossi,,,Melbourne Uni
+WSC,Group 2,Amara Okafor,,,Monash
+WSC,Group 2,Maya Alvarez,,,Melbourne Uni
+WSC,Group 2,Rhys Silva,,,Monash
+WSC,Group 2,Rania Gill,,,RMIT
+MDC,Group 1,Uma Quirke,Otto Tan,1,Deakin
+MDC,Group 1,Jia Abbott,Ines Gill,2,Melbourne Uni
+MDC,Group 1,Zane Hoang,Kaia Vargas,3,Box Hill
+MDC,Group 1,Bodhi Bianchi,Ulla Wong,4,Melbourne Uni
+MDC,Group 2,Uma Wong,Hana Alvarez,,Melbourne Uni
+MDC,Group 2,Nadia Cheng,Rhys Vargas,,Melbourne Uni
+MDC,Group 2,Jonah Silva,Fabio Kaur,,Monash
+MDC,Group 2,Bodhi Vargas,Greta Nguyen,,Box Hill
+MDC,Group 3,Yara Okafor,Gideon Lim,,Waverley
+MDC,Group 3,Noor Okafor,Uma Quirke,,Deakin
+MDC,Group 3,Hana Bhatt,Omar Duarte,,RMIT
+MDC,Group 3,Zane Xu,Maya Rossi,,Box Hill
+MDC,Group 4,Elin Costa,Ulla Tan,,Monash
+MDC,Group 4,Jia Hoang,Anika Abbott,,Waverley
+MDC,Group 4,Farrah Duarte,Chen Wong,,Monash
+MDC,Group 4,Idris Kaur,Ines Patel,,Melbourne Uni
+MDC,Group 5,Uma Tan,Kian Zhao,,Waverley
+MDC,Group 5,Ines Farah,Elin Costa,,Deakin
+MDC,Group 5,Otto Moreau,Idris Alvarez,,Melbourne Uni
+MDC,Group 5,Idris Patel,Celia Eriksen,,Waverley
+WDC,Group 1,Gemma Vargas,Farrah Lim,1,Monash
+WDC,Group 1,Bella Kaur,Priya Quirke,2,Melbourne Uni
+WDC,Group 1,Yara Rossi,Vik Okafor,,RMIT
+WDC,Group 1,Tara Alvarez,Lena Vargas,,RMIT
+WDC,Group 2,Nadia Silva,Yusuf Eriksen,,Melbourne Uni
+WDC,Group 2,Priya Vargas,Yusuf Yilmaz,,Box Hill
+WDC,Group 2,Kaia Tan,Priya Duarte,,Melbourne Uni
+WDC,Group 2,Jia Ueda,Elias Abbott,,Waverley
+XDC,Group 1,Sana Costa,Zane Okafor,1,Melbourne Uni
+XDC,Group 1,Vik Farah,Xiulan Eriksen,2,Box Hill
+XDC,Group 1,Fabio Kaur,Viktor Abbott,,RMIT
+XDC,Group 2,Gideon Ismail,Lena Xu,,Box Hill
+XDC,Group 2,Omar Duarte,Zara Okafor,,RMIT
+XDC,Group 2,Dax Quirke,Quinn Zhao,,Monash
+XDC,Group 3,Jia Hoang,Anika Farah,,Box Hill
+XDC,Group 3,Dax Vargas,Greta Tan,,Monash
+XDC,Group 3,Farrah Patel,Hugo Lim,,Melbourne Uni
+XDC,Group 4,Idris Alvarez,Aiden Xu,,Box Hill
+XDC,Group 4,Anika Lim,Lena Wong,,Deakin
+XDC,Group 4,Ulla Silva,Otto Bhatt,,Waverley

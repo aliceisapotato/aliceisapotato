@@ -19,19 +19,21 @@ function flatten(source) {
     .replace(/^export\s+(?=(async\s+)?function|const|class)/gm, '');
 }
 
-const defaultConfig = read('data/monash-open-2025.json');
+const exampleConfig = read('examples/monash-open-2025.example.json');
 
 const app = flatten(read('web/app.js'))
   .replace(
-    /async function loadDefaults\(\) \{[\s\S]*?\n\}/,
-    'async function loadDefaults() {\n  return JSON.parse(JSON.stringify(DEFAULT_CONFIG));\n}',
+    /async function loadExample\(\) \{[\s\S]*?\n\}/,
+    'async function loadExample() {\n  return JSON.parse(JSON.stringify(EXAMPLE_CONFIG));\n}',
   );
 
 const bundle = [
-  `const DEFAULT_CONFIG = ${defaultConfig.trim()};`,
+  `const EXAMPLE_CONFIG = ${exampleConfig.trim()};`,
+  flatten(read('src/config.js')),
   flatten(read('src/draw.js')),
   flatten(read('src/scheduler.js')),
   flatten(read('src/report.js')),
+  flatten(read('src/import.js')),
   flatten(read('src/index.js')),
   app,
 ].join('\n\n');

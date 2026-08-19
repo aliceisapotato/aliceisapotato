@@ -103,6 +103,7 @@ export function tournamentSummary(draws, dayResults, config) {
       lastStartLabel: r.stats.lastStart === null ? '-' : formatTime(r.stats.lastStart),
       finishLabel: r.stats.finish === null ? '-' : formatTime(r.stats.finish),
       unscheduled: r.unscheduled.length,
+      busiestPlayer: r.stats.busiestPlayer,
     })),
   };
 }
@@ -200,7 +201,7 @@ export function matchesCsv(dayResults) {
         m.discipline,
         m.stage === 'group' ? 'Group' : 'Knockout',
         m.round,
-        m.stage === 'group' ? `Gr ${m.groupIndex + 1}` : '',
+        m.stage === 'group' ? (m.groupName || `Group ${m.groupIndex + 1}`) : '',
         sideLabel(m.sideA),
         sideLabel(m.sideB),
       ]);

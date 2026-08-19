@@ -9,7 +9,7 @@ import {
 } from '../src/draw.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const config = JSON.parse(fs.readFileSync(path.join(root, 'data/monash-open-2025.json'), 'utf8'));
+const config = JSON.parse(fs.readFileSync(path.join(root, 'examples/monash-open-2025.example.json'), 'utf8'));
 
 test('group sizes follow the 3-then-4 convention', () => {
   assert.deepEqual(planGroupSizes(45), Array(15).fill(3));

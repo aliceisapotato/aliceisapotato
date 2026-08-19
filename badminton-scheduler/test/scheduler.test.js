@@ -8,7 +8,7 @@ import { parseTime, formatTime } from '../src/scheduler.js';
 import { buildGrid, matchesCsv } from '../src/report.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const config = JSON.parse(fs.readFileSync(path.join(root, 'data/monash-open-2025.json'), 'utf8'));
+const config = JSON.parse(fs.readFileSync(path.join(root, 'examples/monash-open-2025.example.json'), 'utf8'));
 const plan = planTournament(config);
 
 test('every planned match gets a court and a start time', () => {

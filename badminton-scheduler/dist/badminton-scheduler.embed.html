@@ -141,6 +141,7 @@ input, select {
 .tabs button { border: none; background: none; border-bottom: 2px solid transparent; border-radius: 0; color: var(--muted); }
 .tabs button.active { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
 .hidden { display: none; }
+.empty-hidden { display: none !important; }
 
 .day-switch button { margin-right: 6px; }
 .day-switch button.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
@@ -185,6 +186,22 @@ table.grid td.hour { border-top: 2px solid var(--line-strong); }
 .bad { color: var(--error); font-weight: 600; }
 .ok { color: var(--accent); }
 
+.hint { color: var(--muted); font-size: 12px; margin: 0 0 10px; }
+textarea {
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink);
+  width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--field); margin-top: 8px;
+}
+#importPanel { margin-top: 12px; padding: 12px 0 18px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+#importPanel h3 { margin-top: 14px; }
+.issues { max-height: 160px; overflow-y: auto; margin-bottom: 10px; }
+.issues .note { margin-bottom: 4px; }
+.empty {
+  text-align: center; padding: 60px 20px; color: var(--muted);
+}
+.empty h2 { font-size: 16px; color: var(--ink); margin-bottom: 6px; }
+.empty p { max-width: 46ch; margin: 0 auto; }
+
 .toast {
   position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
   background: var(--panel); color: var(--ink); border: 1px solid var(--line);
@@ -205,6 +222,7 @@ table.grid td.hour { border-top: 2px solid var(--line-strong); }
   .panel { border: none; }
   table.grid { font-size: 9px; }
   .tab-body.hidden { display: none; }
+.empty-hidden { display: none !important; }
 }
 
 </style>
@@ -215,12 +233,40 @@ table.grid td.hour { border-top: 2px solid var(--line-strong); }
   </div>
   <div class="topbar-actions">
     <button id="generateBtn" class="primary">Generate schedule</button>
-    <button id="resetBtn" class="ghost" title="Reload the 2025 Monash Open setup">Load defaults</button>
+    <button id="resetBtn" class="ghost" title="Clear the loaded draw and settings">Clear draw</button>
   </div>
 </header>
 
 <main>
   <section class="panel" id="settings">
+    <h2>Draw</h2>
+    <p class="hint">Import the draw as published — a spreadsheet or CSV with one row
+      per entrant. Include the group each entrant was drawn into and the app schedules
+      the draw as it stands; leave it out and it forms the groups itself.</p>
+    <div class="row">
+      <label class="file">Choose draw file<input id="drawFile" type="file"
+        accept=".xlsx,.xlsm,.csv,.tsv,.txt,.json"></label>
+      <button class="ghost small" id="pasteBtn">Paste rows</button>
+      <button class="ghost small" id="exampleBtn">Load 2025 example</button>
+    </div>
+    <textarea id="pasteArea" class="hidden" rows="6"
+      placeholder="Event,Group,Player 1,Player 2,Seed&#10;MSC,Group 1,Ann Lee,,1"></textarea>
+
+    <div id="importPanel" class="hidden">
+      <div class="grid-2">
+        <label>Sheet<select id="sheetPick"></select></label>
+        <label>Header row<input id="headerRow" type="number" min="1" step="1"></label>
+      </div>
+      <h3>Columns</h3>
+      <div class="grid-4" id="mapping"></div>
+      <div id="importStats" class="stats"></div>
+      <div id="importIssues" class="issues"></div>
+      <div class="row">
+        <button class="primary small" id="applyImportBtn">Use this draw</button>
+        <button class="ghost small" id="cancelImportBtn">Cancel</button>
+      </div>
+    </div>
+
     <h2>Tournament</h2>
     <div class="grid-2">
       <label>Name<input id="cfgName" type="text"></label>
@@ -261,7 +307,7 @@ table.grid td.hour { border-top: 2px solid var(--line-strong); }
     <h3>Events</h3>
     <div class="tbl-wrap"><table class="tbl" id="eventsTable">
       <thead>
-        <tr><th>Grade</th><th>Discipline</th><th>Entries</th><th>Seeds</th><th>Format</th><th>Day</th><th>Qual./group</th><th></th></tr>
+        <tr><th>Grade</th><th>Discipline</th><th>Entries</th><th>Groups</th><th>Seeds</th><th>Format</th><th>Day</th><th>Qual./group</th><th></th></tr>
       </thead>
       <tbody></tbody>
     </table></div>
@@ -278,6 +324,12 @@ table.grid td.hour { border-top: 2px solid var(--line-strong); }
       <button data-tab="summary">Summary</button>
       <button data-tab="draws">Draws</button>
       <button data-tab="checks">Checks</button>
+    </div>
+
+    <div id="emptyState" class="empty hidden">
+      <h2>No draw loaded</h2>
+      <p>Import the draw on the left — or load the 2025 example to see how a finished
+        schedule looks — and the court grid appears here.</p>
     </div>
 
     <div class="tab-body" id="tab-schedule">
@@ -314,7 +366,7 @@ table.grid td.hour { border-top: 2px solid var(--line-strong); }
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
 <script type="module">
-const DEFAULT_CONFIG = {
+const EXAMPLE_CONFIG = {
   "name": "2025 Monash Open",
   "venue": "Monash University Badminton Club",
   "granularityMin": 10,
@@ -370,6 +422,48 @@ const DEFAULT_CONFIG = {
     { "grade": "C", "discipline": "XD", "entries": 16, "seeds": 4, "format": "RR + KO", "day": 1 }
   ]
 };
+
+/**
+ * Tournament settings — everything except the draw itself.
+ *
+ * The draw is imported; these are the knobs the tournament desk sets: how long
+ * the days are, how many courts, how long a match takes in each grade.
+ */
+
+function defaultSettings() {
+  return {
+    name: 'Monash Open',
+    venue: '',
+    granularityMin: 10,
+    restMin: 20,
+    turnaroundMin: 0,
+    // Open: best of 3 to 15 (settings to 21). A/B/C: one game to 30, no settings.
+    matchMinutes: { O: 30, A: 25, B: 25, C: 25, default: 25 },
+    shuttlesPerMatch: { O: 4, default: 2 },
+    gradeCourts: { O: [1, 2, 3, 4] },
+    strictGradeCourts: false,
+    days: [
+      { id: 1, date: '', label: 'Day 1', grades: ['A', 'C'], courts: 10, start: '09:00', end: '20:00' },
+      { id: 2, date: '', label: 'Day 2', grades: ['O', 'B'], courts: 10, start: '09:00', end: '20:00' },
+    ],
+    events: [],
+  };
+}
+
+/** Settings from a file, with anything absent filled in from the defaults. */
+function withDefaults(settings = {}) {
+  const base = defaultSettings();
+  return {
+    ...base,
+    ...settings,
+    matchMinutes: { ...base.matchMinutes, ...(settings.matchMinutes || {}) },
+    shuttlesPerMatch: { ...base.shuttlesPerMatch, ...(settings.shuttlesPerMatch || {}) },
+    gradeCourts: settings.gradeCourts ?? base.gradeCourts,
+    days: settings.days?.length ? settings.days : base.days,
+    events: settings.events || [],
+  };
+}
+
 
 /**
  * Draw generation: turns an entry count into groups, round-robin fixtures and a
@@ -511,18 +605,23 @@ function knockoutRounds(entrants) {
 
 /** Team/pair identifiers for an event, e.g. MSC-01 ... MSC-45. */
 function makeTeams(code, entries, names = []) {
-  return Array.from({ length: entries }, (_, i) => ({
-    id: `${code}-${String(i + 1).padStart(2, '0')}`,
-    label: names[i] || `${code} #${i + 1}`,
-    players: splitPlayers(names[i]),
-  }));
+  return Array.from({ length: entries }, (_, i) => makeTeam(code, i, names[i]));
 }
 
+function makeTeam(code, index, name) {
+  return {
+    id: `${code}-${String(index + 1).padStart(2, '0')}`,
+    label: name || `${code} #${index + 1}`,
+    players: splitPlayers(name),
+  };
+}
+
+/** 'Ann Lee / Bo Chen' -> ['ann lee', 'bo chen'] — the key for cross-event clashes. */
 function splitPlayers(name) {
   if (!name) return [];
-  return name
-    .split(/\s*[/&+]\s*/)
-    .map((p) => p.trim())
+  return String(name)
+    .split(/\s*[/&+]\s*|\s+(?:and|with)\s+/i)
+    .map((p) => p.trim().toLowerCase().replace(/\s+/g, ' '))
     .filter(Boolean);
 }
 
@@ -564,14 +663,32 @@ function buildEventDraw(spec, options = {}) {
   const durationMin = options.durationMin ?? 20;
   const qualifiersPerGroup = spec.qualifiersPerGroup ?? 1;
 
-  const teams = makeTeams(code, spec.entries, spec.entrants || []);
-  const sizes = usesGroups
-    ? spec.groupSizes
-      || (spec.numGroups
-        ? distribute(spec.entries, spec.numGroups, 2, 8)
-        : planGroupSizes(spec.entries))
-    : [];
-  const groups = usesGroups ? assignTeamsToGroups(teams, sizes) : [];
+  // A draw that already names its groups is honoured as drawn; otherwise the
+  // entrants are distributed over automatically sized groups.
+  const drawn = usesGroups && Array.isArray(spec.groups) && spec.groups.length
+    ? spec.groups.map((group) => group.map((entrant) => (typeof entrant === 'string' ? entrant : entrant.label)))
+    : null;
+
+  let teams;
+  let sizes;
+  let groups;
+
+  if (drawn) {
+    const flat = drawn.flat();
+    teams = flat.map((name, i) => makeTeam(code, i, name));
+    sizes = drawn.map((group) => group.length);
+    let cursor = 0;
+    groups = drawn.map((group) => group.map(() => teams[cursor++]));
+  } else {
+    teams = makeTeams(code, spec.entries, spec.entrants || []);
+    sizes = usesGroups
+      ? spec.groupSizes
+        || (spec.numGroups
+          ? distribute(spec.entries, spec.numGroups, 2, 8)
+          : planGroupSizes(spec.entries))
+      : [];
+    groups = usesGroups ? assignTeamsToGroups(teams, sizes) : [];
+  }
 
   const matches = [];
   const base = {
@@ -581,6 +698,9 @@ function buildEventDraw(spec, options = {}) {
     day: spec.day,
     durationMin,
   };
+
+  const playersOf = (...sides) => [...new Set(sides.flatMap((side) => side.players || []))];
+  const groupNames = spec.groupNames || sizes.map((_, i) => `Group ${i + 1}`);
 
   if (usesGroups) {
     groups.forEach((groupTeams, gi) => {
@@ -593,10 +713,12 @@ function buildEventDraw(spec, options = {}) {
             stage: 'group',
             round: `R${ri + 1}`,
             groupIndex: gi,
+            groupName: groupNames[gi],
             groupRound: ri + 1,
             sideA: { type: 'team', id: a.id, label: a.label },
             sideB: { type: 'team', id: b.id, label: b.label },
             teamIds: [a.id, b.id],
+            playerIds: playersOf(a, b),
             deps: [],
           });
         });
@@ -606,7 +728,7 @@ function buildEventDraw(spec, options = {}) {
 
   if (usesKnockout) {
     const entrants = usesGroups
-      ? qualifierEntrants(groups.length, qualifiersPerGroup)
+      ? qualifierEntrants(groups.length, qualifiersPerGroup, groupNames)
       : teams.map((t) => ({ type: 'team', id: t.id, label: t.label }));
 
     // A group's qualifiers are only known once every match in that group is done.
@@ -633,6 +755,9 @@ function buildEventDraw(spec, options = {}) {
           sideA: tie.sideA,
           sideB: tie.sideB,
           teamIds: [tie.sideA, tie.sideB].filter((s) => s.type === 'team').map((s) => s.id),
+          playerIds: [...new Set([tie.sideA, tie.sideB]
+            .filter((s) => s.type === 'team')
+            .flatMap((s) => teams.find((t) => t.id === s.id)?.players || []))],
           deps: [...new Set(deps)],
         });
       });
@@ -649,6 +774,8 @@ function buildEventDraw(spec, options = {}) {
     seeds: spec.seeds ?? 0,
     durationMin,
     groupSizes: sizes,
+    groupNames,
+    drawn: Boolean(drawn),
     groups: groups.map((g) => g.map((t) => ({ id: t.id, label: t.label }))),
     teams,
     matches,
@@ -660,7 +787,7 @@ function buildEventDraw(spec, options = {}) {
  * Rank qualifiers across groups: all group winners first (in group order), then
  * runners-up in reverse group order so a group's pair meets as late as possible.
  */
-function qualifierEntrants(numGroups, qualifiersPerGroup) {
+function qualifierEntrants(numGroups, qualifiersPerGroup, groupNames = []) {
   const entrants = [];
   for (let rank = 1; rank <= qualifiersPerGroup; rank += 1) {
     const order = Array.from({ length: numGroups }, (_, i) => i);
@@ -670,7 +797,7 @@ function qualifierEntrants(numGroups, qualifiersPerGroup) {
         type: 'qualifier',
         groupIndex: gi,
         rank,
-        label: `Gr ${gi + 1} ${rank === 1 ? 'winner' : `#${rank}`}`,
+        label: `${groupNames[gi] || `Gr ${gi + 1}`} ${rank === 1 ? 'winner' : `#${rank}`}`,
       });
     }
   }
@@ -756,6 +883,7 @@ function scheduleDay(matches, day, options = {}) {
 
   const assignments = new Map(); // matchId -> { start, end, courtIndex }
   const teamFreeAt = new Map(); // teamId -> minute the team can play again
+  const playerFreeAt = new Map(); // player -> same, across every event they entered
   const pending = new Set(matches.map((m) => m.id));
   const eventAnchor = new Map(); // eventCode -> court index the event last used
 
@@ -768,6 +896,10 @@ function scheduleDay(matches, day, options = {}) {
     }
     for (const teamId of match.teamIds) {
       t = Math.max(t, teamFreeAt.get(teamId) ?? dayStart);
+    }
+    // Named entrants clash across events too — one player, five possible draws.
+    for (const player of match.playerIds || []) {
+      t = Math.max(t, playerFreeAt.get(player) ?? dayStart);
     }
     if (match.notBefore) t = Math.max(t, parseTime(match.notBefore));
     return t;
@@ -813,6 +945,7 @@ function scheduleDay(matches, day, options = {}) {
       court.freeAt = end + turnaround;
       eventAnchor.set(match.eventCode, court.index);
       for (const teamId of match.teamIds) teamFreeAt.set(teamId, end + restMin);
+      for (const player of match.playerIds || []) playerFreeAt.set(player, end + restMin);
       pending.delete(match.id);
       freeCourts = freeCourts.filter((c) => c !== court);
     }
@@ -936,11 +1069,18 @@ function dayStats(scheduled, courtCount, dayStart) {
     peak = Math.max(peak, current);
   }
 
+  const playerLoad = new Map();
+  for (const m of scheduled) {
+    for (const player of m.playerIds || []) playerLoad.set(player, (playerLoad.get(player) || 0) + 1);
+  }
+  const busiest = [...playerLoad.entries()].sort((a, b) => b[1] - a[1])[0];
+
   return {
     matches: scheduled.length,
     firstStart,
     lastStart,
     finish,
+    busiestPlayer: busiest ? { name: busiest[0], matches: busiest[1] } : null,
     courtHours: +(playedMinutes / 60).toFixed(1),
     utilisation: window > 0 ? +((playedMinutes / (window * courtCount)) * 100).toFixed(1) : 0,
     peakConcurrent: peak,
@@ -1067,6 +1207,7 @@ function tournamentSummary(draws, dayResults, config) {
       lastStartLabel: r.stats.lastStart === null ? '-' : formatTime(r.stats.lastStart),
       finishLabel: r.stats.finish === null ? '-' : formatTime(r.stats.finish),
       unscheduled: r.unscheduled.length,
+      busiestPlayer: r.stats.busiestPlayer,
     })),
   };
 }
@@ -1164,7 +1305,7 @@ function matchesCsv(dayResults) {
         m.discipline,
         m.stage === 'group' ? 'Group' : 'Knockout',
         m.round,
-        m.stage === 'group' ? `Gr ${m.groupIndex + 1}` : '',
+        m.stage === 'group' ? (m.groupName || `Group ${m.groupIndex + 1}`) : '',
         sideLabel(m.sideA),
         sideLabel(m.sideB),
       ]);
@@ -1212,7 +1353,431 @@ function csvCell(value) {
 }
 
 
+/**
+ * Draw import.
+ *
+ * Reads a draw as published by the tournament desk — .xlsx, .csv/.tsv or the
+ * app's own JSON — works out which columns hold the event, group and entrant,
+ * and turns it into the event specs the draw builder and scheduler consume.
+ *
+ * Two shapes are accepted:
+ *   - a full draw: one row per entrant, with the group they were drawn into
+ *   - an entry list: the same without a group column, in which case the app
+ *     forms the groups itself
+ */
+
+
+/* ------------------------------------------------------------- xlsx reader */
+
+/** Minimal .xlsx reader: zip central directory + raw inflate + sheet XML. */
+async function readXlsx(arrayBuffer) {
+  const files = await unzip(new Uint8Array(arrayBuffer));
+  const xml = (name) => (files.has(name) ? decode(files.get(name)) : '');
+
+  const shared = [...xml('xl/sharedStrings.xml').matchAll(/<si>([\s\S]*?)<\/si>/g)]
+    .map(([, block]) => [...block.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)]
+      .map(([, text]) => unescapeXml(text))
+      .join(''));
+
+  const rels = new Map(
+    [...xml('xl/_rels/workbook.xml.rels').matchAll(/<Relationship\b[^>]*\/>/g)]
+      .map(([tag]) => [attr(tag, 'Id'), attr(tag, 'Target')]),
+  );
+
+  const sheets = [];
+  for (const [tag] of xml('xl/workbook.xml').matchAll(/<sheet\b[^>]*\/>/g)) {
+    const name = unescapeXml(attr(tag, 'name') || `Sheet ${sheets.length + 1}`);
+    const target = rels.get(attr(tag, 'r:id')) || `worksheets/sheet${sheets.length + 1}.xml`;
+    const path = `xl/${target.replace(/^\/?xl\//, '').replace(/^\//, '')}`;
+    const sheetXml = xml(path);
+    if (sheetXml) sheets.push({ name, rows: parseSheet(sheetXml, shared) });
+  }
+  return sheets;
+}
+
+function parseSheet(sheetXml, shared) {
+  const rows = [];
+  for (const [rowTag] of sheetXml.matchAll(/<row\b[^>]*\/>|<row\b[^>]*>[\s\S]*?<\/row>/g)) {
+    // Spreadsheets omit empty rows from the XML but number the ones they keep,
+    // so place each row at its stated index and leave the gaps blank.
+    const rowNumber = Number(attr(rowTag, 'r')) || rows.length + 1;
+    while (rows.length < rowNumber - 1) rows.push([]);
+    const cells = [];
+    for (const [cellTag] of rowTag.matchAll(/<c\b[^>]*\/>|<c\b[^>]*>[\s\S]*?<\/c>/g)) {
+      const ref = attr(cellTag, 'r') || '';
+      const index = ref ? columnIndex(ref) : cells.length;
+      const type = attr(cellTag, 't');
+      let value = '';
+      if (type === 'inlineStr') {
+        value = [...cellTag.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(([, t]) => unescapeXml(t)).join('');
+      } else {
+        const raw = cellTag.match(/<v>([\s\S]*?)<\/v>/);
+        if (raw) value = type === 's' ? (shared[Number(raw[1])] ?? '') : unescapeXml(raw[1]);
+      }
+      cells[index] = String(value).trim();
+    }
+    rows[rowNumber - 1] = Array.from(cells, (c) => c ?? '');
+  }
+  return Array.from(rows, (row) => row || []);
+}
+
+function columnIndex(ref) {
+  const letters = ref.match(/^[A-Z]+/i)?.[0] || 'A';
+  return [...letters.toUpperCase()].reduce((n, ch) => n * 26 + (ch.charCodeAt(0) - 64), 0) - 1;
+}
+
+function attr(tag, name) {
+  const match = tag.match(new RegExp(`${name.replace(':', '\\:')}="([^"]*)"`));
+  return match ? match[1] : '';
+}
+
+function unescapeXml(text) {
+  return text
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&amp;/g, '&');
+}
+
+function decode(bytes) {
+  return new TextDecoder().decode(bytes);
+}
+
+/** Read a zip through its central directory, inflating deflate entries. */
+async function unzip(bytes) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let eocd = -1;
+  for (let i = bytes.length - 22; i >= 0 && i > bytes.length - 65558; i -= 1) {
+    if (view.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('Not a valid .xlsx file (no zip directory found)');
+
+  const count = view.getUint16(eocd + 10, true);
+  let pointer = view.getUint32(eocd + 16, true);
+  const files = new Map();
+
+  for (let i = 0; i < count; i += 1) {
+    if (view.getUint32(pointer, true) !== 0x02014b50) break;
+    const method = view.getUint16(pointer + 10, true);
+    const compressedSize = view.getUint32(pointer + 20, true);
+    const nameLength = view.getUint16(pointer + 28, true);
+    const extraLength = view.getUint16(pointer + 30, true);
+    const commentLength = view.getUint16(pointer + 32, true);
+    const localOffset = view.getUint32(pointer + 42, true);
+    const name = decode(bytes.subarray(pointer + 46, pointer + 46 + nameLength));
+
+    const localNameLength = view.getUint16(localOffset + 26, true);
+    const localExtraLength = view.getUint16(localOffset + 28, true);
+    const start = localOffset + 30 + localNameLength + localExtraLength;
+    const raw = bytes.subarray(start, start + compressedSize);
+
+    files.set(name, method === 0 ? raw : await inflateRaw(raw));
+    pointer += 46 + nameLength + extraLength + commentLength;
+  }
+  return files;
+}
+
+async function inflateRaw(bytes) {
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+/* ------------------------------------------------------ delimited text */
+
+/** CSV/TSV parser with quoted-field support; the delimiter is detected. */
+function parseDelimited(text, delimiter) {
+  const body = text.replace(/^﻿/, '');
+  const sep = delimiter || detectDelimiter(body);
+  const rows = [];
+  let row = [];
+  let field = '';
+  let quoted = false;
+
+  for (let i = 0; i < body.length; i += 1) {
+    const char = body[i];
+    if (quoted) {
+      if (char === '"') {
+        if (body[i + 1] === '"') { field += '"'; i += 1; } else quoted = false;
+      } else field += char;
+    } else if (char === '"') quoted = true;
+    else if (char === sep) { row.push(field.trim()); field = ''; }
+    else if (char === '\n') {
+      row.push(field.trim());
+      if (row.some((c) => c !== '')) rows.push(row);
+      row = [];
+      field = '';
+    }
+    else if (char !== '\r') field += char;
+  }
+  row.push(field.trim());
+  if (row.some((c) => c !== '')) rows.push(row);
+  return rows;
+}
+
+function detectDelimiter(text) {
+  const sample = text.split('\n').slice(0, 20).join('\n');
+  const counts = [',', '\t', ';'].map((d) => [d, sample.split(d).length]);
+  return counts.sort((a, b) => b[1] - a[1])[0][1] > 1 ? counts[0][0] : ',';
+}
+
+/** Read any supported file into sheets of rows. */
+async function readDrawFile({ name = '', text, buffer }) {
+  const extension = name.split('.').pop().toLowerCase();
+  if (extension === 'xlsx' || extension === 'xlsm') {
+    return readXlsx(buffer);
+  }
+  if (extension === 'json') {
+    return [{ name: 'json', json: JSON.parse(text), rows: [] }];
+  }
+  return [{ name: name || 'pasted', rows: parseDelimited(text) }];
+}
+
+/* ------------------------------------------------------- column detection */
+
+const COLUMN_PATTERNS = {
+  event: /^(event|discipline\s*&?\s*grade|category|event\s*code)$/i,
+  grade: /^(grade|division|level)$/i,
+  discipline: /^(discipline|type|event\s*type)$/i,
+  group: /^(group|gr|pool|group\s*(no|number|#))$/i,
+  entrant: /^(entrant|player|name|team|pair|partnership|player\s*1|player\s*a|entry)$/i,
+  partner: /^(partner|player\s*2|player\s*b|second\s*player)$/i,
+  seed: /^(seed|seeding|seed\s*(no|number|#))$/i,
+  day: /^(day|date|play\s*day)$/i,
+  club: /^(club|team\s*name|association|state)$/i,
+};
+
+/**
+ * Find the header row and map the columns we understand. Rows above the header
+ * (titles, notes) are ignored.
+ */
+function sniffLayout(rows) {
+  let best = { score: -1, headerRow: 0, columns: {} };
+
+  for (let r = 0; r < Math.min(rows.length, 25); r += 1) {
+    const columns = {};
+    let score = 0;
+    rows[r].forEach((cell, c) => {
+      const header = String(cell || '').trim();
+      if (!header) return;
+      for (const [field, pattern] of Object.entries(COLUMN_PATTERNS)) {
+        if (columns[field] === undefined && pattern.test(header)) {
+          columns[field] = c;
+          score += field === 'entrant' || field === 'event' ? 2 : 1;
+        }
+      }
+    });
+    if (score > best.score) best = { score, headerRow: r, columns };
+  }
+
+  if (best.score <= 0) return { headerRow: 0, columns: {}, confident: false };
+  const usable = best.columns.entrant !== undefined
+    && (best.columns.event !== undefined || best.columns.discipline !== undefined);
+  return { ...best, confident: usable };
+}
+
+/* ---------------------------------------------------------- event parsing */
+
+const DISCIPLINE_WORDS = [
+  [/mixed/i, 'XD'],
+  [/(men|male|boy).*(double|db|dbl)/i, 'MD'],
+  [/(women|ladies|female|girl).*(double|db|dbl)/i, 'WD'],
+  [/(men|male|boy).*(single|sg)/i, 'MS'],
+  [/(women|ladies|female|girl).*(single|sg)/i, 'WS'],
+];
+
+/** Read 'MSC', 'XD', "Men's Singles C" or 'Open Mixed Doubles' into grade + discipline. */
+function parseEventLabel(label) {
+  const text = String(label || '').trim();
+  if (!text) return null;
+
+  const code = text.toUpperCase().replace(/[^A-Z]/g, '');
+  const codeMatch = code.match(/^(MS|WS|MD|WD|XD)(O|A|B|C)?$/);
+  if (codeMatch) {
+    return { discipline: codeMatch[1], grade: codeMatch[2] || 'O' };
+  }
+
+  const discipline = DISCIPLINE_WORDS.find(([pattern]) => pattern.test(text))?.[1];
+  if (!discipline) return null;
+
+  let grade = 'O';
+  if (/\bopen\b/i.test(text)) grade = 'O';
+  else {
+    const graded = text.match(/\b(?:grade\s*)?([ABC])\b(?:\s*grade)?/i);
+    if (graded) grade = graded[1].toUpperCase();
+  }
+  return { discipline, grade };
+}
+
+function parseGradeCell(value) {
+  const text = String(value || '').trim().toUpperCase();
+  if (!text) return null;
+  if (/^O(PEN)?$/.test(text)) return 'O';
+  const letter = text.match(/^([ABC])(\s*GRADE)?$/) || text.match(/GRADE\s*([ABC])/);
+  return letter ? letter[1] : null;
+}
+
+function parseDisciplineCell(value) {
+  const text = String(value || '').trim();
+  const code = text.toUpperCase().replace(/[^A-Z]/g, '');
+  if (DISCIPLINES.includes(code)) return code;
+  return DISCIPLINE_WORDS.find(([pattern]) => pattern.test(text))?.[1] || null;
+}
+
+/** 'Group 3', 'Gr 3', '3' and 'C' all identify a group; keep a sortable key. */
+function parseGroupCell(value) {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  const numbered = text.match(/(\d+)/);
+  if (numbered) return { key: text, order: Number(numbered[1]) };
+  const letter = text.replace(/^(group|gr|pool)\s*/i, '').trim().toUpperCase();
+  if (!letter) return null;
+  return { key: text, order: letter.charCodeAt(0) - 64 };
+}
+
+/* -------------------------------------------------------------- importing */
+
+/**
+ * Turn parsed rows into event specs.
+ *
+ * @param {string[][]} rows
+ * @param {object} layout  { headerRow, columns } — usually from sniffLayout
+ * @param {object} options { defaultFormat, dayForGrade }
+ */
+function importDraw(rows, layout, options = {}) {
+  const { headerRow = 0, columns = {} } = layout || {};
+  const issues = [];
+  const events = new Map();
+  let imported = 0;
+
+  for (let r = headerRow + 1; r < rows.length; r += 1) {
+    const row = rows[r];
+    if (!row || row.every((cell) => !String(cell || '').trim())) continue;
+
+    const cell = (field) => (columns[field] === undefined ? '' : String(row[columns[field]] ?? '').trim());
+
+    let grade = parseGradeCell(cell('grade'));
+    let discipline = parseDisciplineCell(cell('discipline'));
+    if (cell('event')) {
+      const parsed = parseEventLabel(cell('event'));
+      if (parsed) {
+        discipline = discipline || parsed.discipline;
+        grade = grade || parsed.grade;
+      }
+    }
+    if (!discipline) {
+      issues.push({ level: 'warn', row: r + 1, message: `Row ${r + 1}: could not tell which event "${cell('event') || cell('discipline')}" is — skipped.` });
+      continue;
+    }
+    grade = grade || 'O';
+    if (!GRADES.includes(grade)) {
+      issues.push({ level: 'warn', row: r + 1, message: `Row ${r + 1}: unknown grade "${grade}" — treated as Open.` });
+      grade = 'O';
+    }
+
+    const name = cell('entrant');
+    if (!name) {
+      issues.push({ level: 'warn', row: r + 1, message: `Row ${r + 1}: no entrant name — skipped.` });
+      continue;
+    }
+    const partner = cell('partner');
+    const label = partner ? `${name} / ${partner}` : name;
+    const seed = Number(cell('seed')) || 0;
+    const group = parseGroupCell(cell('group'));
+
+    const code = eventCode(grade, discipline);
+    if (!events.has(code)) {
+      events.set(code, { code, grade, discipline, groups: new Map(), entrants: [], seeds: 0, day: null });
+    }
+    const event = events.get(code);
+    const dayCell = cell('day');
+    if (dayCell && event.day === null) event.day = Number(dayCell) || dayCell;
+
+    const entrant = { label, seed, club: cell('club') };
+    if (seed) event.seeds += 1;
+    event.entrants.push(entrant);
+    if (group) {
+      if (!event.groups.has(group.key)) event.groups.set(group.key, { order: group.order, entrants: [] });
+      event.groups.get(group.key).entrants.push(entrant);
+    }
+    imported += 1;
+  }
+
+  const specs = [...events.values()].map((event) => {
+    const drawn = [...event.groups.entries()].sort((a, b) => a[1].order - b[1].order || a[0].localeCompare(b[0]));
+    const partial = drawn.length > 0 && drawn.reduce((n, [, g]) => n + g.entrants.length, 0) !== event.entrants.length;
+    if (partial) {
+      issues.push({
+        level: 'warn',
+        message: `${event.code}: some entrants have no group — the app will draw the ungrouped ones itself.`,
+      });
+    }
+    const spec = {
+      grade: event.grade,
+      discipline: event.discipline,
+      code: event.code,
+      entries: event.entrants.length,
+      seeds: event.seeds,
+      format: options.defaultFormat || 'RR + KO',
+      day: event.day ?? options.dayForGrade?.(event.grade) ?? null,
+      entrants: event.entrants.map((e) => e.label),
+    };
+    if (drawn.length && !partial) {
+      spec.groups = drawn.map(([, g]) => g.entrants.map((e) => e.label));
+      spec.groupNames = drawn.map(([key]) => key);
+    }
+    return spec;
+  });
+
+  for (const spec of specs) {
+    const duplicates = findDuplicates(spec.entrants);
+    for (const name of duplicates) {
+      issues.push({ level: 'warn', message: `${spec.code}: "${name}" appears more than once in the draw.` });
+    }
+    if (spec.entries < 2) {
+      issues.push({ level: 'warn', message: `${spec.code}: only ${spec.entries} entry — no matches to schedule.` });
+    }
+  }
+
+  specs.sort((a, b) => GRADES.indexOf(a.grade) - GRADES.indexOf(b.grade)
+    || DISCIPLINES.indexOf(a.discipline) - DISCIPLINES.indexOf(b.discipline));
+
+  return {
+    events: specs,
+    issues,
+    stats: {
+      rows: imported,
+      events: specs.length,
+      entries: specs.reduce((sum, s) => sum + s.entries, 0),
+      drawn: specs.filter((s) => s.groups).length,
+    },
+  };
+}
+
+function findDuplicates(labels) {
+  const seen = new Set();
+  const duplicates = new Set();
+  for (const label of labels) {
+    const key = label.toLowerCase().replace(/\s+/g, ' ');
+    if (seen.has(key)) duplicates.add(label);
+    seen.add(key);
+  }
+  return [...duplicates];
+}
+
+/** Merge imported events into a tournament config, keeping day/court settings. */
+function applyImport(config, imported) {
+  const days = config.days || [];
+  const dayForGrade = (grade) => days.find((d) => (d.grades || []).includes(grade))?.id ?? days[0]?.id ?? 1;
+  return {
+    ...config,
+    events: imported.events.map((spec) => ({ ...spec, day: spec.day ?? dayForGrade(spec.grade) })),
+  };
+}
+
+
 /** Public entry point: config in, full tournament plan out. */
+
+
 
 
 
@@ -1239,29 +1804,45 @@ function planTournament(config) {
 
 
 
-const STORAGE_KEY = 'badminton-scheduler.config.v1';
+
+
+const STORAGE_KEY = 'badminton-scheduler.config.v2';
 const $ = (id) => document.getElementById(id);
+
+const IMPORT_FIELDS = [
+  ['event', 'Event'],
+  ['grade', 'Grade'],
+  ['discipline', 'Discipline'],
+  ['group', 'Group'],
+  ['entrant', 'Entrant / Player 1'],
+  ['partner', 'Partner / Player 2'],
+  ['seed', 'Seed'],
+  ['day', 'Day'],
+  ['club', 'Club'],
+];
 
 let config = null;
 let plan = null;
 let activeDay = 0;
+let importState = null;
 
 /* ------------------------------------------------------------------ setup */
 
-async function loadDefaults() {
-  return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+/** The 2025 draw, kept only as a worked example of a finished schedule. */
+async function loadExample() {
+  return JSON.parse(JSON.stringify(EXAMPLE_CONFIG));
 }
 
-function load() {
+async function load() {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) {
     try {
-      return Promise.resolve(JSON.parse(saved));
+      return withDefaults(JSON.parse(saved));
     } catch {
-      /* fall through to defaults */
+      /* fall through to an empty tournament */
     }
   }
-  return loadDefaults();
+  return withDefaults({});
 }
 
 function save() {
@@ -1316,7 +1897,9 @@ function renderEvents() {
     tr.innerHTML = `
       <td>${select(GRADES, event.grade, i, 'grade', (g) => (g === 'O' ? 'Open' : g))}</td>
       <td>${select(DISCIPLINES, event.discipline, i, 'discipline', (d) => d)}</td>
-      <td><input type="number" min="0" value="${event.entries}" data-event="${i}" data-field="entries"></td>
+      <td><input type="number" min="0" value="${event.entries}" data-event="${i}" data-field="entries"
+        ${event.groups ? 'readonly title="Set by the imported draw"' : ''}></td>
+      <td class="num">${event.groups ? `${event.groups.length} drawn` : 'auto'}</td>
       <td><input type="number" min="0" value="${event.seeds ?? 0}" data-event="${i}" data-field="seeds"></td>
       <td>${select(['RR + KO', 'RR', 'KO'], event.format || 'RR + KO', i, 'format', (f) => f)}</td>
       <td>${select(config.days.map((d) => d.id), event.day, i, 'day', (id) => `D${id}`)}</td>
@@ -1336,6 +1919,18 @@ function select(values, current, index, field, labelFn) {
 /* -------------------------------------------------------------- scheduling */
 
 function generate() {
+  const hasDraw = (config.events || []).some((e) => (e.entries ?? 0) > 1);
+  $('emptyState').classList.toggle('hidden', hasDraw);
+  for (const name of ['schedule', 'summary', 'draws', 'checks']) {
+    $(`tab-${name}`).classList.toggle('empty-hidden', !hasDraw);
+  }
+  $('tabs').classList.toggle('hidden', !hasDraw);
+  if (!hasDraw) {
+    plan = null;
+    save();
+    return;
+  }
+
   plan = planTournament(config);
   activeDay = Math.min(activeDay, plan.days.length - 1);
   renderDaySwitch();
@@ -1392,7 +1987,7 @@ function renderSchedule() {
           const when = `${formatTime(m.start)}-${formatTime(m.end)}`;
           return `<td rowspan="${cell.span}" style="background:${colourFor(m.eventCode)}"
             title="${when} · ${escapeHtml(m.courtName)} · ${m.eventCode} ${m.round}${
-              m.stage === 'group' ? ` · Group ${m.groupIndex + 1}` : ''
+              m.stage === 'group' ? ` · ${m.groupName || `Group ${m.groupIndex + 1}`}` : ''
             }\n${escapeHtml(sideLabel(m.sideA))} v ${escapeHtml(sideLabel(m.sideB))}">
             <div class="cell">
               <div class="ev">${m.eventCode} <span class="rd">${m.round}</span></div>
@@ -1455,7 +2050,7 @@ function renderDraws() {
   $('drawsHost').innerHTML = plan.draws
     .map((draw) => {
       const groups = draw.groups
-        .map((g, i) => `<div class="group"><b>Group ${i + 1}</b>${g
+        .map((g, i) => `<div class="group"><b>${escapeHtml(draw.groupNames?.[i] || `Group ${i + 1}`)}</b>${g
           .map((t) => escapeHtml(t.label))
           .join('<br>')}</div>`)
         .join('');
@@ -1636,10 +2231,87 @@ function wireInputs() {
 
   $('generateBtn').onclick = () => generate();
 
-  $('resetBtn').onclick = async () => {
-    config = await loadDefaults();
+  $('resetBtn').onclick = () => {
+    if (!confirm('Clear the loaded draw and start again?')) return;
+    config = withDefaults({});
+    importState = null;
+    $('importPanel').classList.add('hidden');
+    $('pasteArea').classList.add('hidden');
     renderSettings();
     generate();
+  };
+
+  $('exampleBtn').onclick = async () => {
+    config = withDefaults(await loadExample());
+    renderSettings();
+    generate();
+    toast('Loaded the 2025 example draw');
+  };
+
+  $('drawFile').onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const sheets = await readDrawFile({
+        name: file.name,
+        buffer: await file.arrayBuffer(),
+        text: /\.(xlsx|xlsm)$/i.test(file.name) ? undefined : await file.text(),
+      });
+      startImport(sheets, file.name);
+    } catch (error) {
+      toast(`Could not read ${file.name}: ${error.message}`);
+    }
+    e.target.value = '';
+  };
+
+  $('pasteBtn').onclick = () => {
+    const area = $('pasteArea');
+    area.classList.toggle('hidden');
+    if (!area.classList.contains('hidden')) area.focus();
+  };
+
+  $('pasteArea').oninput = () => {
+    const text = $('pasteArea').value.trim();
+    if (text.split('\n').length < 2) return;
+    startImport([{ name: 'pasted rows', rows: parseDelimited(text) }], 'pasted rows');
+  };
+
+  $('sheetPick').onchange = () => {
+    importState.sheetIndex = Number($('sheetPick').value);
+    const rows = importState.sheets[importState.sheetIndex].rows;
+    importState.layout = sniffLayout(rows);
+    renderImport();
+  };
+
+  $('headerRow').onchange = () => {
+    importState.layout = { ...importState.layout, headerRow: Math.max(0, Number($('headerRow').value) - 1) };
+    renderImport();
+  };
+
+  $('mapping').addEventListener('change', (e) => {
+    const field = e.target.dataset.map;
+    if (!field) return;
+    const columns = { ...importState.layout.columns };
+    if (e.target.value === '') delete columns[field];
+    else columns[field] = Number(e.target.value);
+    importState.layout = { ...importState.layout, columns };
+    renderImport();
+  });
+
+  $('applyImportBtn').onclick = () => {
+    config = applyImport(config, importState.preview);
+    config.name = config.name || importState.tournamentName || 'Monash Open';
+    importState = null;
+    $('importPanel').classList.add('hidden');
+    $('pasteArea').classList.add('hidden');
+    renderSettings();
+    generate();
+    toast('Draw imported — schedule generated');
+  };
+
+  $('cancelImportBtn').onclick = () => {
+    importState = null;
+    $('importPanel').classList.add('hidden');
   };
 
   $('exportCfgBtn').onclick = () => download(`${slug(config.name)}-setup.json`, JSON.stringify(config, null, 2));
@@ -1667,6 +2339,78 @@ function wireInputs() {
       $(`tab-${name}`).classList.toggle('hidden', name !== tab);
     }
   });
+}
+
+/* ------------------------------------------------------------------ import */
+
+function startImport(sheets, sourceName) {
+  const usable = sheets.filter((s) => s.rows?.length);
+
+  // A JSON export of a whole tournament is loaded directly, not column-mapped.
+  const json = sheets.find((s) => s.json);
+  if (json) {
+    config = withDefaults(json.json);
+    renderSettings();
+    generate();
+    toast(`Loaded ${sourceName}`);
+    return;
+  }
+  if (!usable.length) {
+    toast(`${sourceName} has no readable rows`);
+    return;
+  }
+
+  // Pick the sheet whose headers look most like a draw.
+  const ranked = usable
+    .map((sheet, index) => ({ index, sheet, layout: sniffLayout(sheet.rows) }))
+    .sort((a, b) => (b.layout.score || 0) - (a.layout.score || 0));
+
+  importState = {
+    sheets: usable,
+    sheetIndex: ranked[0].index,
+    layout: ranked[0].layout,
+    tournamentName: sourceName.replace(/\.[^.]+$/, ''),
+  };
+  $('importPanel').classList.remove('hidden');
+  renderImport();
+}
+
+function renderImport() {
+  const { sheets, sheetIndex, layout } = importState;
+  const rows = sheets[sheetIndex].rows;
+
+  $('sheetPick').innerHTML = sheets
+    .map((s, i) => `<option value="${i}" ${i === sheetIndex ? 'selected' : ''}>${escapeHtml(s.name)}</option>`)
+    .join('');
+  $('headerRow').value = (layout.headerRow ?? 0) + 1;
+
+  const headers = rows[layout.headerRow ?? 0] || [];
+  $('mapping').innerHTML = IMPORT_FIELDS.map(([field, label]) => {
+    const options = ['<option value="">—</option>']
+      .concat(headers.map((header, i) => `<option value="${i}" ${
+        layout.columns?.[field] === i ? 'selected' : ''
+      }>${escapeHtml(header || `Column ${i + 1}`)}</option>`))
+      .join('');
+    return `<label>${label}<select data-map="${field}">${options}</select></label>`;
+  }).join('');
+
+  const preview = importDraw(rows, layout);
+  importState.preview = preview;
+
+  $('importStats').innerHTML = [
+    stat('Entries', preview.stats.entries),
+    stat('Events', preview.stats.events),
+    stat('Already drawn', `${preview.stats.drawn}/${preview.stats.events}`),
+  ].join('');
+
+  const issues = preview.issues.slice(0, 40);
+  $('importIssues').innerHTML = preview.stats.entries === 0
+    ? '<div class="note error"><b>Nothing imported</b>Check the header row and the column mapping above.</div>'
+    : issues.map((i) => `<div class="note ${i.level}">${escapeHtml(i.message)}</div>`).join('')
+      + (preview.issues.length > issues.length
+        ? `<div class="note info">…and ${preview.issues.length - issues.length} more.</div>` : '');
+
+  $('applyImportBtn').disabled = preview.stats.entries === 0;
 }
 
 /* ------------------------------------------------------------------ helpers */

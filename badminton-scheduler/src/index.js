@@ -4,7 +4,9 @@ import { buildDraws } from './draw.js';
 import { scheduleTournament } from './scheduler.js';
 import { tournamentSummary, collectWarnings } from './report.js';
 
+export * from './config.js';
 export * from './draw.js';
+export * from './import.js';
 export * from './scheduler.js';
 export * from './report.js';
 

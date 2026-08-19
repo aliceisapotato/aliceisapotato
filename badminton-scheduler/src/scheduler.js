@@ -47,6 +47,7 @@ export function scheduleDay(matches, day, options = {}) {
 
   const assignments = new Map(); // matchId -> { start, end, courtIndex }
   const teamFreeAt = new Map(); // teamId -> minute the team can play again
+  const playerFreeAt = new Map(); // player -> same, across every event they entered
   const pending = new Set(matches.map((m) => m.id));
   const eventAnchor = new Map(); // eventCode -> court index the event last used
 
@@ -59,6 +60,10 @@ export function scheduleDay(matches, day, options = {}) {
     }
     for (const teamId of match.teamIds) {
       t = Math.max(t, teamFreeAt.get(teamId) ?? dayStart);
+    }
+    // Named entrants clash across events too — one player, five possible draws.
+    for (const player of match.playerIds || []) {
+      t = Math.max(t, playerFreeAt.get(player) ?? dayStart);
     }
     if (match.notBefore) t = Math.max(t, parseTime(match.notBefore));
     return t;
@@ -104,6 +109,7 @@ export function scheduleDay(matches, day, options = {}) {
       court.freeAt = end + turnaround;
       eventAnchor.set(match.eventCode, court.index);
       for (const teamId of match.teamIds) teamFreeAt.set(teamId, end + restMin);
+      for (const player of match.playerIds || []) playerFreeAt.set(player, end + restMin);
       pending.delete(match.id);
       freeCourts = freeCourts.filter((c) => c !== court);
     }
@@ -227,11 +233,18 @@ function dayStats(scheduled, courtCount, dayStart) {
     peak = Math.max(peak, current);
   }
 
+  const playerLoad = new Map();
+  for (const m of scheduled) {
+    for (const player of m.playerIds || []) playerLoad.set(player, (playerLoad.get(player) || 0) + 1);
+  }
+  const busiest = [...playerLoad.entries()].sort((a, b) => b[1] - a[1])[0];
+
   return {
     matches: scheduled.length,
     firstStart,
     lastStart,
     finish,
+    busiestPlayer: busiest ? { name: busiest[0], matches: busiest[1] } : null,
     courtHours: +(playedMinutes / 60).toFixed(1),
     utilisation: window > 0 ? +((playedMinutes / (window * courtCount)) * 100).toFixed(1) : 0,
     peakConcurrent: peak,

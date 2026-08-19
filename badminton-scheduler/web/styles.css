@@ -139,6 +139,7 @@ input, select {
 .tabs button { border: none; background: none; border-bottom: 2px solid transparent; border-radius: 0; color: var(--muted); }
 .tabs button.active { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
 .hidden { display: none; }
+.empty-hidden { display: none !important; }
 
 .day-switch button { margin-right: 6px; }
 .day-switch button.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
@@ -183,6 +184,22 @@ table.grid td.hour { border-top: 2px solid var(--line-strong); }
 .bad { color: var(--error); font-weight: 600; }
 .ok { color: var(--accent); }
 
+.hint { color: var(--muted); font-size: 12px; margin: 0 0 10px; }
+textarea {
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink);
+  width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--field); margin-top: 8px;
+}
+#importPanel { margin-top: 12px; padding: 12px 0 18px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+#importPanel h3 { margin-top: 14px; }
+.issues { max-height: 160px; overflow-y: auto; margin-bottom: 10px; }
+.issues .note { margin-bottom: 4px; }
+.empty {
+  text-align: center; padding: 60px 20px; color: var(--muted);
+}
+.empty h2 { font-size: 16px; color: var(--ink); margin-bottom: 6px; }
+.empty p { max-width: 46ch; margin: 0 auto; }
+
 .toast {
   position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
   background: var(--panel); color: var(--ink); border: 1px solid var(--line);
@@ -203,4 +220,5 @@ table.grid td.hour { border-top: 2px solid var(--line-strong); }
   .panel { border: none; }
   table.grid { font-size: 9px; }
   .tab-body.hidden { display: none; }
+.empty-hidden { display: none !important; }
 }

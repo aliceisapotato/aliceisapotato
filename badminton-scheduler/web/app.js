@@ -2,33 +2,49 @@
 
 import { planTournament } from '../src/index.js';
 import { DISCIPLINES, GRADES, DISCIPLINE_NAMES, GRADE_NAMES, eventCode } from '../src/draw.js';
+import { withDefaults } from '../src/config.js';
 import { formatTime } from '../src/scheduler.js';
 import { buildGrid, gridCsv, matchesCsv, summaryCsv, sideLabel } from '../src/report.js';
+import { readDrawFile, parseDelimited, sniffLayout, importDraw, applyImport } from '../src/import.js';
 
-const STORAGE_KEY = 'badminton-scheduler.config.v1';
+const STORAGE_KEY = 'badminton-scheduler.config.v2';
 const $ = (id) => document.getElementById(id);
+
+const IMPORT_FIELDS = [
+  ['event', 'Event'],
+  ['grade', 'Grade'],
+  ['discipline', 'Discipline'],
+  ['group', 'Group'],
+  ['entrant', 'Entrant / Player 1'],
+  ['partner', 'Partner / Player 2'],
+  ['seed', 'Seed'],
+  ['day', 'Day'],
+  ['club', 'Club'],
+];
 
 let config = null;
 let plan = null;
 let activeDay = 0;
+let importState = null;
 
 /* ------------------------------------------------------------------ setup */
 
-async function loadDefaults() {
-  const response = await fetch('../data/monash-open-2025.json');
+/** The 2025 draw, kept only as a worked example of a finished schedule. */
+async function loadExample() {
+  const response = await fetch('../examples/monash-open-2025.example.json');
   return response.json();
 }
 
-function load() {
+async function load() {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) {
     try {
-      return Promise.resolve(JSON.parse(saved));
+      return withDefaults(JSON.parse(saved));
     } catch {
-      /* fall through to defaults */
+      /* fall through to an empty tournament */
     }
   }
-  return loadDefaults();
+  return withDefaults({});
 }
 
 function save() {
@@ -83,7 +99,9 @@ function renderEvents() {
     tr.innerHTML = `
       <td>${select(GRADES, event.grade, i, 'grade', (g) => (g === 'O' ? 'Open' : g))}</td>
       <td>${select(DISCIPLINES, event.discipline, i, 'discipline', (d) => d)}</td>
-      <td><input type="number" min="0" value="${event.entries}" data-event="${i}" data-field="entries"></td>
+      <td><input type="number" min="0" value="${event.entries}" data-event="${i}" data-field="entries"
+        ${event.groups ? 'readonly title="Set by the imported draw"' : ''}></td>
+      <td class="num">${event.groups ? `${event.groups.length} drawn` : 'auto'}</td>
       <td><input type="number" min="0" value="${event.seeds ?? 0}" data-event="${i}" data-field="seeds"></td>
       <td>${select(['RR + KO', 'RR', 'KO'], event.format || 'RR + KO', i, 'format', (f) => f)}</td>
       <td>${select(config.days.map((d) => d.id), event.day, i, 'day', (id) => `D${id}`)}</td>
@@ -103,6 +121,18 @@ function select(values, current, index, field, labelFn) {
 /* -------------------------------------------------------------- scheduling */
 
 function generate() {
+  const hasDraw = (config.events || []).some((e) => (e.entries ?? 0) > 1);
+  $('emptyState').classList.toggle('hidden', hasDraw);
+  for (const name of ['schedule', 'summary', 'draws', 'checks']) {
+    $(`tab-${name}`).classList.toggle('empty-hidden', !hasDraw);
+  }
+  $('tabs').classList.toggle('hidden', !hasDraw);
+  if (!hasDraw) {
+    plan = null;
+    save();
+    return;
+  }
+
   plan = planTournament(config);
   activeDay = Math.min(activeDay, plan.days.length - 1);
   renderDaySwitch();
@@ -159,7 +189,7 @@ function renderSchedule() {
           const when = `${formatTime(m.start)}-${formatTime(m.end)}`;
           return `<td rowspan="${cell.span}" style="background:${colourFor(m.eventCode)}"
             title="${when} · ${escapeHtml(m.courtName)} · ${m.eventCode} ${m.round}${
-              m.stage === 'group' ? ` · Group ${m.groupIndex + 1}` : ''
+              m.stage === 'group' ? ` · ${m.groupName || `Group ${m.groupIndex + 1}`}` : ''
             }\n${escapeHtml(sideLabel(m.sideA))} v ${escapeHtml(sideLabel(m.sideB))}">
             <div class="cell">
               <div class="ev">${m.eventCode} <span class="rd">${m.round}</span></div>
@@ -222,7 +252,7 @@ function renderDraws() {
   $('drawsHost').innerHTML = plan.draws
     .map((draw) => {
       const groups = draw.groups
-        .map((g, i) => `<div class="group"><b>Group ${i + 1}</b>${g
+        .map((g, i) => `<div class="group"><b>${escapeHtml(draw.groupNames?.[i] || `Group ${i + 1}`)}</b>${g
           .map((t) => escapeHtml(t.label))
           .join('<br>')}</div>`)
         .join('');
@@ -403,10 +433,87 @@ function wireInputs() {
 
   $('generateBtn').onclick = () => generate();
 
-  $('resetBtn').onclick = async () => {
-    config = await loadDefaults();
+  $('resetBtn').onclick = () => {
+    if (!confirm('Clear the loaded draw and start again?')) return;
+    config = withDefaults({});
+    importState = null;
+    $('importPanel').classList.add('hidden');
+    $('pasteArea').classList.add('hidden');
     renderSettings();
     generate();
+  };
+
+  $('exampleBtn').onclick = async () => {
+    config = withDefaults(await loadExample());
+    renderSettings();
+    generate();
+    toast('Loaded the 2025 example draw');
+  };
+
+  $('drawFile').onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    try {
+      const sheets = await readDrawFile({
+        name: file.name,
+        buffer: await file.arrayBuffer(),
+        text: /\.(xlsx|xlsm)$/i.test(file.name) ? undefined : await file.text(),
+      });
+      startImport(sheets, file.name);
+    } catch (error) {
+      toast(`Could not read ${file.name}: ${error.message}`);
+    }
+    e.target.value = '';
+  };
+
+  $('pasteBtn').onclick = () => {
+    const area = $('pasteArea');
+    area.classList.toggle('hidden');
+    if (!area.classList.contains('hidden')) area.focus();
+  };
+
+  $('pasteArea').oninput = () => {
+    const text = $('pasteArea').value.trim();
+    if (text.split('\n').length < 2) return;
+    startImport([{ name: 'pasted rows', rows: parseDelimited(text) }], 'pasted rows');
+  };
+
+  $('sheetPick').onchange = () => {
+    importState.sheetIndex = Number($('sheetPick').value);
+    const rows = importState.sheets[importState.sheetIndex].rows;
+    importState.layout = sniffLayout(rows);
+    renderImport();
+  };
+
+  $('headerRow').onchange = () => {
+    importState.layout = { ...importState.layout, headerRow: Math.max(0, Number($('headerRow').value) - 1) };
+    renderImport();
+  };
+
+  $('mapping').addEventListener('change', (e) => {
+    const field = e.target.dataset.map;
+    if (!field) return;
+    const columns = { ...importState.layout.columns };
+    if (e.target.value === '') delete columns[field];
+    else columns[field] = Number(e.target.value);
+    importState.layout = { ...importState.layout, columns };
+    renderImport();
+  });
+
+  $('applyImportBtn').onclick = () => {
+    config = applyImport(config, importState.preview);
+    config.name = config.name || importState.tournamentName || 'Monash Open';
+    importState = null;
+    $('importPanel').classList.add('hidden');
+    $('pasteArea').classList.add('hidden');
+    renderSettings();
+    generate();
+    toast('Draw imported — schedule generated');
+  };
+
+  $('cancelImportBtn').onclick = () => {
+    importState = null;
+    $('importPanel').classList.add('hidden');
   };
 
   $('exportCfgBtn').onclick = () => download(`${slug(config.name)}-setup.json`, JSON.stringify(config, null, 2));
@@ -434,6 +541,78 @@ function wireInputs() {
       $(`tab-${name}`).classList.toggle('hidden', name !== tab);
     }
   });
+}
+
+/* ------------------------------------------------------------------ import */
+
+function startImport(sheets, sourceName) {
+  const usable = sheets.filter((s) => s.rows?.length);
+
+  // A JSON export of a whole tournament is loaded directly, not column-mapped.
+  const json = sheets.find((s) => s.json);
+  if (json) {
+    config = withDefaults(json.json);
+    renderSettings();
+    generate();
+    toast(`Loaded ${sourceName}`);
+    return;
+  }
+  if (!usable.length) {
+    toast(`${sourceName} has no readable rows`);
+    return;
+  }
+
+  // Pick the sheet whose headers look most like a draw.
+  const ranked = usable
+    .map((sheet, index) => ({ index, sheet, layout: sniffLayout(sheet.rows) }))
+    .sort((a, b) => (b.layout.score || 0) - (a.layout.score || 0));
+
+  importState = {
+    sheets: usable,
+    sheetIndex: ranked[0].index,
+    layout: ranked[0].layout,
+    tournamentName: sourceName.replace(/\.[^.]+$/, ''),
+  };
+  $('importPanel').classList.remove('hidden');
+  renderImport();
+}
+
+function renderImport() {
+  const { sheets, sheetIndex, layout } = importState;
+  const rows = sheets[sheetIndex].rows;
+
+  $('sheetPick').innerHTML = sheets
+    .map((s, i) => `<option value="${i}" ${i === sheetIndex ? 'selected' : ''}>${escapeHtml(s.name)}</option>`)
+    .join('');
+  $('headerRow').value = (layout.headerRow ?? 0) + 1;
+
+  const headers = rows[layout.headerRow ?? 0] || [];
+  $('mapping').innerHTML = IMPORT_FIELDS.map(([field, label]) => {
+    const options = ['<option value="">—</option>']
+      .concat(headers.map((header, i) => `<option value="${i}" ${
+        layout.columns?.[field] === i ? 'selected' : ''
+      }>${escapeHtml(header || `Column ${i + 1}`)}</option>`))
+      .join('');
+    return `<label>${label}<select data-map="${field}">${options}</select></label>`;
+  }).join('');
+
+  const preview = importDraw(rows, layout);
+  importState.preview = preview;
+
+  $('importStats').innerHTML = [
+    stat('Entries', preview.stats.entries),
+    stat('Events', preview.stats.events),
+    stat('Already drawn', `${preview.stats.drawn}/${preview.stats.events}`),
+  ].join('');
+
+  const issues = preview.issues.slice(0, 40);
+  $('importIssues').innerHTML = preview.stats.entries === 0
+    ? '<div class="note error"><b>Nothing imported</b>Check the header row and the column mapping above.</div>'
+    : issues.map((i) => `<div class="note ${i.level}">${escapeHtml(i.message)}</div>`).join('')
+      + (preview.issues.length > issues.length
+        ? `<div class="note info">…and ${preview.issues.length - issues.length} more.</div>` : '');
+
+  $('applyImportBtn').disabled = preview.stats.entries === 0;
 }
 
 /* ------------------------------------------------------------------ helpers */

@@ -14,12 +14,40 @@
   </div>
   <div class="topbar-actions">
     <button id="generateBtn" class="primary">Generate schedule</button>
-    <button id="resetBtn" class="ghost" title="Reload the 2025 Monash Open setup">Load defaults</button>
+    <button id="resetBtn" class="ghost" title="Clear the loaded draw and settings">Clear draw</button>
   </div>
 </header>
 
 <main>
   <section class="panel" id="settings">
+    <h2>Draw</h2>
+    <p class="hint">Import the draw as published — a spreadsheet or CSV with one row
+      per entrant. Include the group each entrant was drawn into and the app schedules
+      the draw as it stands; leave it out and it forms the groups itself.</p>
+    <div class="row">
+      <label class="file">Choose draw file<input id="drawFile" type="file"
+        accept=".xlsx,.xlsm,.csv,.tsv,.txt,.json"></label>
+      <button class="ghost small" id="pasteBtn">Paste rows</button>
+      <button class="ghost small" id="exampleBtn">Load 2025 example</button>
+    </div>
+    <textarea id="pasteArea" class="hidden" rows="6"
+      placeholder="Event,Group,Player 1,Player 2,Seed&#10;MSC,Group 1,Ann Lee,,1"></textarea>
+
+    <div id="importPanel" class="hidden">
+      <div class="grid-2">
+        <label>Sheet<select id="sheetPick"></select></label>
+        <label>Header row<input id="headerRow" type="number" min="1" step="1"></label>
+      </div>
+      <h3>Columns</h3>
+      <div class="grid-4" id="mapping"></div>
+      <div id="importStats" class="stats"></div>
+      <div id="importIssues" class="issues"></div>
+      <div class="row">
+        <button class="primary small" id="applyImportBtn">Use this draw</button>
+        <button class="ghost small" id="cancelImportBtn">Cancel</button>
+      </div>
+    </div>
+
     <h2>Tournament</h2>
     <div class="grid-2">
       <label>Name<input id="cfgName" type="text"></label>
@@ -60,7 +88,7 @@
     <h3>Events</h3>
     <div class="tbl-wrap"><table class="tbl" id="eventsTable">
       <thead>
-        <tr><th>Grade</th><th>Discipline</th><th>Entries</th><th>Seeds</th><th>Format</th><th>Day</th><th>Qual./group</th><th></th></tr>
+        <tr><th>Grade</th><th>Discipline</th><th>Entries</th><th>Groups</th><th>Seeds</th><th>Format</th><th>Day</th><th>Qual./group</th><th></th></tr>
       </thead>
       <tbody></tbody>
     </table></div>
@@ -77,6 +105,12 @@
       <button data-tab="summary">Summary</button>
       <button data-tab="draws">Draws</button>
       <button data-tab="checks">Checks</button>
+    </div>
+
+    <div id="emptyState" class="empty hidden">
+      <h2>No draw loaded</h2>
+      <p>Import the draw on the left — or load the 2025 example to see how a finished
+        schedule looks — and the court grid appears here.</p>
     </div>
 
     <div class="tab-body" id="tab-schedule">

@@ -138,18 +138,23 @@ export function knockoutRounds(entrants) {
 
 /** Team/pair identifiers for an event, e.g. MSC-01 ... MSC-45. */
 function makeTeams(code, entries, names = []) {
-  return Array.from({ length: entries }, (_, i) => ({
-    id: `${code}-${String(i + 1).padStart(2, '0')}`,
-    label: names[i] || `${code} #${i + 1}`,
-    players: splitPlayers(names[i]),
-  }));
+  return Array.from({ length: entries }, (_, i) => makeTeam(code, i, names[i]));
 }
 
-function splitPlayers(name) {
+function makeTeam(code, index, name) {
+  return {
+    id: `${code}-${String(index + 1).padStart(2, '0')}`,
+    label: name || `${code} #${index + 1}`,
+    players: splitPlayers(name),
+  };
+}
+
+/** 'Ann Lee / Bo Chen' -> ['ann lee', 'bo chen'] — the key for cross-event clashes. */
+export function splitPlayers(name) {
   if (!name) return [];
-  return name
-    .split(/\s*[/&+]\s*/)
-    .map((p) => p.trim())
+  return String(name)
+    .split(/\s*[/&+]\s*|\s+(?:and|with)\s+/i)
+    .map((p) => p.trim().toLowerCase().replace(/\s+/g, ' '))
     .filter(Boolean);
 }
 
@@ -191,14 +196,32 @@ export function buildEventDraw(spec, options = {}) {
   const durationMin = options.durationMin ?? 20;
   const qualifiersPerGroup = spec.qualifiersPerGroup ?? 1;
 
-  const teams = makeTeams(code, spec.entries, spec.entrants || []);
-  const sizes = usesGroups
-    ? spec.groupSizes
-      || (spec.numGroups
-        ? distribute(spec.entries, spec.numGroups, 2, 8)
-        : planGroupSizes(spec.entries))
-    : [];
-  const groups = usesGroups ? assignTeamsToGroups(teams, sizes) : [];
+  // A draw that already names its groups is honoured as drawn; otherwise the
+  // entrants are distributed over automatically sized groups.
+  const drawn = usesGroups && Array.isArray(spec.groups) && spec.groups.length
+    ? spec.groups.map((group) => group.map((entrant) => (typeof entrant === 'string' ? entrant : entrant.label)))
+    : null;
+
+  let teams;
+  let sizes;
+  let groups;
+
+  if (drawn) {
+    const flat = drawn.flat();
+    teams = flat.map((name, i) => makeTeam(code, i, name));
+    sizes = drawn.map((group) => group.length);
+    let cursor = 0;
+    groups = drawn.map((group) => group.map(() => teams[cursor++]));
+  } else {
+    teams = makeTeams(code, spec.entries, spec.entrants || []);
+    sizes = usesGroups
+      ? spec.groupSizes
+        || (spec.numGroups
+          ? distribute(spec.entries, spec.numGroups, 2, 8)
+          : planGroupSizes(spec.entries))
+      : [];
+    groups = usesGroups ? assignTeamsToGroups(teams, sizes) : [];
+  }
 
   const matches = [];
   const base = {
@@ -208,6 +231,9 @@ export function buildEventDraw(spec, options = {}) {
     day: spec.day,
     durationMin,
   };
+
+  const playersOf = (...sides) => [...new Set(sides.flatMap((side) => side.players || []))];
+  const groupNames = spec.groupNames || sizes.map((_, i) => `Group ${i + 1}`);
 
   if (usesGroups) {
     groups.forEach((groupTeams, gi) => {
@@ -220,10 +246,12 @@ export function buildEventDraw(spec, options = {}) {
             stage: 'group',
             round: `R${ri + 1}`,
             groupIndex: gi,
+            groupName: groupNames[gi],
             groupRound: ri + 1,
             sideA: { type: 'team', id: a.id, label: a.label },
             sideB: { type: 'team', id: b.id, label: b.label },
             teamIds: [a.id, b.id],
+            playerIds: playersOf(a, b),
             deps: [],
           });
         });
@@ -233,7 +261,7 @@ export function buildEventDraw(spec, options = {}) {
 
   if (usesKnockout) {
     const entrants = usesGroups
-      ? qualifierEntrants(groups.length, qualifiersPerGroup)
+      ? qualifierEntrants(groups.length, qualifiersPerGroup, groupNames)
       : teams.map((t) => ({ type: 'team', id: t.id, label: t.label }));
 
     // A group's qualifiers are only known once every match in that group is done.
@@ -260,6 +288,9 @@ export function buildEventDraw(spec, options = {}) {
           sideA: tie.sideA,
           sideB: tie.sideB,
           teamIds: [tie.sideA, tie.sideB].filter((s) => s.type === 'team').map((s) => s.id),
+          playerIds: [...new Set([tie.sideA, tie.sideB]
+            .filter((s) => s.type === 'team')
+            .flatMap((s) => teams.find((t) => t.id === s.id)?.players || []))],
           deps: [...new Set(deps)],
         });
       });
@@ -276,6 +307,8 @@ export function buildEventDraw(spec, options = {}) {
     seeds: spec.seeds ?? 0,
     durationMin,
     groupSizes: sizes,
+    groupNames,
+    drawn: Boolean(drawn),
     groups: groups.map((g) => g.map((t) => ({ id: t.id, label: t.label }))),
     teams,
     matches,
@@ -287,7 +320,7 @@ export function buildEventDraw(spec, options = {}) {
  * Rank qualifiers across groups: all group winners first (in group order), then
  * runners-up in reverse group order so a group's pair meets as late as possible.
  */
-export function qualifierEntrants(numGroups, qualifiersPerGroup) {
+export function qualifierEntrants(numGroups, qualifiersPerGroup, groupNames = []) {
   const entrants = [];
   for (let rank = 1; rank <= qualifiersPerGroup; rank += 1) {
     const order = Array.from({ length: numGroups }, (_, i) => i);
@@ -297,7 +330,7 @@ export function qualifierEntrants(numGroups, qualifiersPerGroup) {
         type: 'qualifier',
         groupIndex: gi,
         rank,
-        label: `Gr ${gi + 1} ${rank === 1 ? 'winner' : `#${rank}`}`,
+        label: `${groupNames[gi] || `Gr ${gi + 1}`} ${rank === 1 ? 'winner' : `#${rank}`}`,
       });
     }
   }
