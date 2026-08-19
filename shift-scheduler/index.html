@@ -228,6 +228,28 @@
   }
   .why span.plus { background: var(--ok-soft); border-color: transparent; color: var(--ok); }
   .why span.minus { background: var(--warn-soft); border-color: transparent; color: var(--warn); }
+  /* personal + published allocation views */
+  .person-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; background: var(--surface); }
+  .person-card > h3.pname { font: 600 1.1rem var(--display); color: var(--text); text-transform: none; letter-spacing: -.005em; }
+  .alloc-day { margin-top: 12px; }
+  .alloc-day > .hd {
+    display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--border-strong); padding-bottom: 5px; margin-bottom: 7px;
+  }
+  .alloc-day > .hd b { font: 600 13.5px var(--sans); }
+  .alloc-day > .hd .meta { font: 500 11.5px var(--mono); color: var(--text-dim); font-variant-numeric: tabular-nums; }
+  .alloc-row {
+    display: grid; grid-template-columns: 108px minmax(0,1fr); gap: 12px;
+    padding: 7px 0; border-bottom: 1px dotted var(--border);
+  }
+  .alloc-row:last-child { border-bottom: 0; }
+  .alloc-row .t { font: 500 12.5px var(--mono); font-variant-numeric: tabular-nums; }
+  .alloc-row .r { font-weight: 600; font-size: 13.5px; }
+  .alloc-row .v { font-size: 12.5px; color: var(--text-dim); }
+  .alloc-row .mates { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+  .alloc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
+  .hit { padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px; margin-bottom: 6px; cursor: pointer; }
+  .hit:hover { background: var(--surface-2); border-color: var(--border-strong); }
   .quote { font-size: 12px; color: var(--text-dim); font-style: italic; max-width: 40ch; }
   .banner strong { color: var(--accent-ink); }
 
@@ -301,6 +323,7 @@
     <button role="tab" data-tab="eoi" aria-selected="false">EOI intake</button>
     <button role="tab" data-tab="people" aria-selected="false">People</button>
     <button role="tab" data-tab="shifts" aria-selected="false">Shifts</button>
+    <button role="tab" data-tab="alloc" aria-selected="false">Allocations</button>
     <button role="tab" data-tab="reports" aria-selected="false">Reports</button>
   </nav>
   <div class="spacer"></div>
@@ -550,6 +573,35 @@
     </div>
   </section>
 
+  <!-- ============ ALLOCATIONS ============ -->
+  <section class="panel" id="panel-alloc">
+    <div class="card">
+      <header><h2>Find your shifts</h2><div class="spacer"></div>
+        <span class="small muted">Type a name to see where you are on</span>
+      </header>
+      <input type="text" id="lookupInput" placeholder="Your name, or your email"
+             autocomplete="off" style="width:100%;max-width:420px;font-size:16px;padding:10px 12px">
+      <div id="lookupResult" style="margin-top:16px"></div>
+    </div>
+
+    <div class="card">
+      <header><h2>Everyone&rsquo;s allocations</h2><div class="spacer"></div>
+        <label class="field" style="flex-direction:row;align-items:center;gap:6px">Group by
+          <select id="allocGroup">
+            <option value="person">Person</option>
+            <option value="shift">Shift</option>
+            <option value="venue">Venue &amp; post</option>
+          </select>
+        </label>
+        <button class="btn sm" id="allocPrintBtn">Print</button>
+        <button class="btn sm" id="allocCsvBtn">CSV</button>
+        <button class="btn sm" id="allocShareBtn" title="A standalone page with names and shifts only — no contact details">Export shareable roster</button>
+      </header>
+      <div id="allocStats" class="stat-row" style="margin-bottom:16px"></div>
+      <div id="allocBody"></div>
+    </div>
+  </section>
+
   <!-- ============ REPORTS ============ -->
   <section class="panel" id="panel-reports">
     <div class="card">
@@ -640,6 +692,10 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 function fromIso(s) { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); }
 function dowOf(s) { return fromIso(s).getDay(); }
 function toMin(t) { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
+function toHM(min) {
+  const p = n => String(n).padStart(2, "0");
+  return p(Math.floor(min / 60) % 24) + ":" + p(min % 60);
+}
 function shiftRange(sh) {
   const a = toMin(sh.start);
   let b = toMin(sh.end);
@@ -1838,11 +1894,51 @@ function csvEscape(v) {
   const s = String(v ?? "");
   return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
-function download(name, text, type = "text/csv") {
+/* Saving a file.
+   Opened from disk, an anchor download works. Inside the published artifact
+   the viewer sandbox makes page-initiated downloads inert, so the host's
+   downloads capability has to be asked instead — and it may refuse an
+   extension, in which case we offer the same bytes under a plain one. */
+let downloadsNs;
+async function getDownloads() {
+  if (downloadsNs !== undefined) return downloadsNs;
+  try {
+    downloadsNs = (typeof claude !== "undefined" && claude.use) ? await claude.use("downloads") : null;
+  } catch (e) { downloadsNs = null; }
+  return downloadsNs;
+}
+function anchorSave(name, text, type) {
   const url = URL.createObjectURL(new Blob([text], { type }));
   const a = el("a", { href: url, download: name });
   document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+async function download(name, text, type = "text/csv") {
+  const dl = await getDownloads();
+  if (!dl) { anchorSave(name, text, type); return; }
+  const attempt = async filename => {
+    await dl.save({ filename, data: text });
+    toast("Saved " + filename);
+  };
+  try {
+    await attempt(name);
+  } catch (err) {
+    const code = err && err.code;
+    if (code === "declined") return;                       // viewer said no
+    if (code === "extension_not_enabled" || code === "rejected_extension") {
+      // csv/html are not always permitted; hand over the same bytes as .txt.
+      const plain = name.replace(/\.[^.]+$/, "") + ".txt";
+      try { await attempt(plain); return; }
+      catch (e2) {
+        if (e2 && e2.code === "declined") return;
+        toast("This view will not save " + name.split(".").pop().toUpperCase() + " files");
+        return;
+      }
+    }
+    if (code === "too_large") { toast("That file is too big to save here"); return; }
+    if (code === "rate_limited") { toast("A save is already open — try again in a moment"); return; }
+    anchorSave(name, text, type);                          // last resort
+  }
 }
 function scheduleCsv(list) {
   const rows = [["Date", "Day", "Start", "End", "Hours", "Venue", "Role", "Position", "Needed", "Assigned", "People", "PIC", "Notes"]];
@@ -1856,6 +1952,366 @@ function scheduleCsv(list) {
   return rows.map(r => r.map(csvEscape).join(",")).join("\n");
 }
 
+
+/* =========================================================
+   Allocations — the finished roster
+   =========================================================
+   What each volunteer is actually on, and a name search so they can find
+   themselves without reading the whole board. */
+
+function shiftsForPerson(personId) {
+  return sortedShifts(db.shifts.filter(s => s.assigned.includes(personId)));
+}
+function matesOn(shift, exceptId) {
+  return shift.assigned.filter(id => id !== exceptId)
+    .map(id => (personById(id) || {}).name).filter(Boolean);
+}
+function personHours(personId) {
+  return shiftsForPerson(personId).reduce((n, s) => n + hours(s), 0);
+}
+
+/* One person's day: when to arrive, when they finish, what they are on. */
+function personDay(person, date) {
+  const list = shiftsForPerson(person.id).filter(s => s.date === date);
+  if (!list.length) return null;
+  const starts = list.map(s => toMin(s.start));
+  const ends = list.map(s => { const [, b] = shiftRange(s); return b; });
+  return {
+    list,
+    arrive: toHM(Math.min(...starts)),
+    finish: toHM(Math.max(...ends) % 1440 || Math.max(...ends)),
+    hours: list.reduce((n, s) => n + hours(s), 0)
+  };
+}
+
+function personCard(person, { showMates = true } = {}) {
+  const card = el("div", { class: "person-card" });
+  const total = personHours(person.id);
+  const shifts = shiftsForPerson(person.id);
+
+  card.append(el("h3", { class: "pname" }, person.name));
+  card.append(el("div", { class: "row", style: "gap:6px;margin-top:6px" },
+    el("span", { class: "chip" }, `${shifts.length} shift${shifts.length === 1 ? "" : "s"}`),
+    el("span", { class: "chip" }, `${total.toFixed(1)}h`),
+    ...person.venues.length < db.event.venues.length ? person.venues.map(v => el("span", { class: "chip" }, venueName(v))) : []
+  ));
+
+  if (!shifts.length) {
+    card.append(el("div", { class: "banner", style: "margin:12px 0 0" },
+      el("div", {},
+        el("div", {}, el("strong", {}, "Not allocated to any shifts yet.")),
+        el("div", { class: "small" }, "You are on the roster — check back once the schedule is finalised."))));
+    return card;
+  }
+
+  for (const date of eventDays()) {
+    const d = personDay(person, date);
+    const day = el("div", { class: "alloc-day" });
+    if (!d) {
+      day.append(el("div", { class: "hd" },
+        el("b", { class: "muted" }, longDate(date)),
+        el("span", { class: "meta" }, "nothing rostered")));
+      card.append(day);
+      continue;
+    }
+    day.append(el("div", { class: "hd" },
+      el("b", {}, longDate(date)),
+      el("span", { class: "meta" }, `arrive ${pretty(d.arrive)} · finish ${pretty(d.finish)} · ${d.hours.toFixed(1)}h`)));
+
+    for (const s of d.list) {
+      const isPic = picOf(s) === person.id;
+      const mates = showMates ? matesOn(s, person.id) : [];
+      day.append(el("div", { class: "alloc-row" },
+        el("div", { class: "t" }, `${pretty(s.start)}–${pretty(s.end)}`),
+        el("div", {},
+          el("div", { class: "r" }, s.role,
+            isPic ? el("span", { class: "chip ok", style: "margin-left:6px" }, "you are PIC") : null,
+            KIND_LABEL[s.kind] ? el("span", { class: "chip", style: "margin-left:6px" }, KIND_LABEL[s.kind]) : null),
+          el("div", { class: "v" }, venueName(s.venue) + (s.location ? ` · ${s.location}` : "")),
+          mates.length ? el("div", { class: "mates" }, "with " + mates.join(", ")) : null
+        )
+      ));
+    }
+    card.append(day);
+  }
+  return card;
+}
+
+/* ---- name search ---- */
+function lookupMatches(q) {
+  const t = q.trim().toLowerCase();
+  if (!t) return [];
+  const starts = [], contains = [];
+  for (const p of db.people) {
+    const name = p.name.toLowerCase();
+    const mail = (p.email || "").toLowerCase();
+    if (name === t || mail === t) return [p];
+    if (name.startsWith(t) || mail.startsWith(t)) starts.push(p);
+    else if (name.includes(t) || mail.includes(t)) contains.push(p);
+  }
+  return [...starts, ...contains].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function renderLookup() {
+  const box = $("#lookupResult");
+  box.textContent = "";
+  const q = $("#lookupInput").value;
+  if (!q.trim()) {
+    box.append(el("div", { class: "small muted" },
+      db.people.length
+        ? `${db.people.length} people on the roster. Start typing to find yours.`
+        : "Nobody on the roster yet."));
+    return;
+  }
+  const hits = lookupMatches(q);
+  if (!hits.length) {
+    box.append(el("div", { class: "banner" },
+      el("div", {},
+        el("div", {}, el("strong", {}, "No one by that name on the roster.")),
+        el("div", { class: "small" }, "Try part of your name, or the email you used on the form. If you signed up and are not here, check with the coordinator."))));
+    return;
+  }
+  if (hits.length > 1) {
+    box.append(el("div", { class: "small muted", style: "margin-bottom:8px" }, `${hits.length} people match — pick yours:`));
+    for (const p of hits.slice(0, 12)) {
+      box.append(el("div", { class: "hit", onclick: () => { $("#lookupInput").value = p.name; renderLookup(); } },
+        el("div", { style: "font-weight:600" }, p.name),
+        el("div", { class: "small muted" }, `${shiftsForPerson(p.id).length} shifts · ${personHours(p.id).toFixed(1)}h`)));
+    }
+    return;
+  }
+  box.append(personCard(hits[0]));
+}
+
+/* ---- everyone ---- */
+function renderAlloc() {
+  const mode = $("#allocGroup").value;
+  const rostered = db.people.filter(p => shiftsForPerson(p.id).length);
+  const idle = db.people.filter(p => !shiftsForPerson(p.id).length);
+  const slots = db.shifts.reduce((n, s) => n + s.needed, 0);
+  const filled = db.shifts.reduce((n, s) => n + Math.min(s.assigned.length, s.needed), 0);
+
+  const stat = (k, v) => el("div", { class: "stat" }, el("div", { class: "k" }, k), el("div", { class: "v" }, v));
+  $("#allocStats").textContent = "";
+  $("#allocStats").append(
+    stat("People rostered", String(rostered.length)),
+    stat("Slots filled", `${filled}/${slots}`),
+    stat("Still open", String(slots - filled)),
+    stat("Not yet used", String(idle.length))
+  );
+
+  const body = $("#allocBody");
+  body.textContent = "";
+
+  if (mode === "person") {
+    if (!rostered.length) {
+      body.append(el("div", { class: "empty" }, "Nobody is allocated yet — run Auto-fill event on the Schedule tab."));
+    } else {
+      const list = el("div", { class: "alloc-list" });
+      for (const p of [...rostered].sort((a, b) => a.name.localeCompare(b.name))) list.append(personCard(p));
+      body.append(list);
+    }
+  } else if (mode === "shift") {
+    for (const date of eventDays()) {
+      const day = el("div", { class: "alloc-day" });
+      day.append(el("div", { class: "hd" }, el("b", {}, longDate(date))));
+      for (const s of sortedShifts(db.shifts.filter(x => x.date === date))) {
+        const pic = picOf(s);
+        const names = s.assigned.map(id => {
+          const p = personById(id);
+          return p ? (id === pic ? p.name + " (PIC)" : p.name) : null;
+        }).filter(Boolean);
+        const short = s.needed - s.assigned.length;
+        day.append(el("div", { class: "alloc-row" },
+          el("div", { class: "t" }, `${pretty(s.start)}–${pretty(s.end)}`),
+          el("div", {},
+            el("div", { class: "r" }, s.role,
+              el("span", { class: "chip " + (short <= 0 ? "ok" : "warn"), style: "margin-left:6px" }, `${s.assigned.length}/${s.needed}`)),
+            el("div", { class: "v" }, venueName(s.venue) + (s.location ? ` · ${s.location}` : "")),
+            el("div", { class: "mates" }, names.length ? names.join(", ") : "nobody yet")
+          )));
+      }
+      body.append(day);
+    }
+  } else {
+    const order = id => db.event.venues.findIndex(v => v.id === id);
+    const groups = new Map();
+    for (const s of db.shifts) {
+      const k = s.venue + "|" + s.role + "|" + s.location;
+      if (!groups.has(k)) groups.set(k, { venue: s.venue, role: s.role, post: s.location, shifts: [] });
+      groups.get(k).shifts.push(s);
+    }
+    const sorted = [...groups.values()].sort((a, b) =>
+      order(a.venue) - order(b.venue) || a.role.localeCompare(b.role) || a.post.localeCompare(b.post));
+    for (const g of sorted) {
+      const day = el("div", { class: "alloc-day" });
+      day.append(el("div", { class: "hd" },
+        el("b", {}, `${venueName(g.venue)} · ${g.role}`),
+        g.post ? el("span", { class: "meta" }, g.post) : null));
+      for (const s of sortedShifts(g.shifts)) {
+        const pic = picOf(s);
+        const names = s.assigned.map(id => {
+          const p = personById(id);
+          return p ? (id === pic ? p.name + " (PIC)" : p.name) : null;
+        }).filter(Boolean);
+        day.append(el("div", { class: "alloc-row" },
+          el("div", { class: "t" }, `${DOW[dowOf(s.date)]} ${pretty(s.start)}`),
+          el("div", {},
+            el("div", { class: "v" }, `${pretty(s.start)}–${pretty(s.end)}`),
+            el("div", { class: "mates" }, names.length ? names.join(", ") : "nobody yet"))));
+      }
+      body.append(day);
+    }
+  }
+
+  if (idle.length) {
+    body.append(el("h3", { style: "margin-top:20px" }, `On the roster but not allocated (${idle.length})`));
+    body.append(el("div", { class: "row", style: "gap:5px;margin-top:8px" },
+      ...idle.sort((a, b) => a.name.localeCompare(b.name)).map(p => el("span", { class: "chip" }, p.name))));
+  }
+}
+
+function allocCsv() {
+  const rows = [["Person", "Email", "Date", "Day", "Start", "End", "Hours", "Venue", "Role", "Position", "PIC", "With"]];
+  for (const p of [...db.people].sort((a, b) => a.name.localeCompare(b.name))) {
+    const list = shiftsForPerson(p.id);
+    if (!list.length) { rows.push([p.name, p.email || "", "", "", "", "", "", "", "not allocated", "", "", ""]); continue; }
+    for (const s of list) {
+      rows.push([p.name, p.email || "", s.date, DOW_LONG[dowOf(s.date)], s.start, s.end, hours(s),
+        venueName(s.venue), s.role, s.location, picOf(s) === p.id ? "yes" : "", matesOn(s, p.id).join("; ")]);
+    }
+  }
+  return rows.map(r => r.map(csvEscape).join(",")).join("\n");
+}
+
+
+/* ---- shareable roster ----------------------------------------------------
+   The scheduler itself holds phone numbers, emergency contacts, dietary
+   needs and EOI answers, so the working file is not the thing to hand round.
+   This builds a standalone page carrying only what a volunteer needs: names,
+   times, venues, roles and who they are on with. */
+function shareableRoster() {
+  const people = db.people
+    .filter(p => shiftsForPerson(p.id).length)
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(p => ({
+      n: p.name,
+      s: shiftsForPerson(p.id).map(s => ({
+        d: s.date, a: s.start, b: s.end,
+        v: venueName(s.venue), r: s.role, p: s.location || "",
+        k: KIND_LABEL[s.kind] || "",
+        pic: picOf(s) === p.id,
+        w: matesOn(s, p.id)
+      }))
+    }));
+  const data = {
+    event: db.event.name,
+    days: eventDays().map(d => ({ iso: d, label: longDate(d) })),
+    generated: new Date().toISOString().slice(0, 10),
+    people
+  };
+
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>${esc(db.event.name)} — your shifts</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{--bg:#f1f3ef;--surface:#fff;--surface2:#e9ece6;--border:#dadfd6;--strong:#bcc4b8;--text:#191d1b;--dim:#5c665f;--accent:#0f6259;--ok:#2f6b3f}
+@media(prefers-color-scheme:dark){:root{--bg:#141817;--surface:#1c2120;--surface2:#242a28;--border:#313835;--strong:#47504c;--text:#e7ebe8;--dim:#96a19b;--accent:#58b3a4;--ok:#7cc48c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:720px;margin:0 auto;padding:24px 18px 60px}
+h1{font-size:1.3rem;margin:0 0 4px;letter-spacing:-.01em}
+.sub{color:var(--dim);font-size:14px;margin-bottom:22px}
+input{width:100%;font-size:17px;padding:13px 14px;border:1px solid var(--strong);border-radius:9px;background:var(--surface);color:var(--text)}
+input:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:16px 18px;margin-top:18px}
+.pname{font-size:1.25rem;font-weight:650;margin:0 0 8px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.chip{background:var(--surface2);border-radius:999px;padding:3px 11px;font-size:12.5px;font-weight:600}
+.chip.pic{background:var(--ok);color:var(--surface)}
+.day{margin-top:16px}
+.dh{display:flex;gap:10px;flex-wrap:wrap;align-items:baseline;border-bottom:1px solid var(--strong);padding-bottom:5px;margin-bottom:8px}
+.dh b{font-size:15px}
+.dh span{font-size:12.5px;color:var(--dim);font-variant-numeric:tabular-nums}
+.row{display:grid;grid-template-columns:104px 1fr;gap:12px;padding:9px 0;border-bottom:1px dotted var(--border)}
+.row:last-child{border-bottom:0}
+.t{font-size:13.5px;font-variant-numeric:tabular-nums;color:var(--dim)}
+.r{font-weight:650;font-size:15px}
+.v{font-size:13.5px;color:var(--dim)}
+.w{font-size:13px;color:var(--dim);margin-top:3px}
+.hit{padding:11px 13px;border:1px solid var(--border);border-radius:9px;margin-top:8px;cursor:pointer;background:var(--surface)}
+.hit:hover{border-color:var(--strong)}
+.none{color:var(--dim);padding:18px 2px}
+.foot{margin-top:34px;color:var(--dim);font-size:12.5px;text-align:center}
+@media print{input,.foot{display:none}.card{border:0;padding:0}}
+</style></head><body><div class="wrap">
+<h1>${esc(db.event.name)}</h1>
+<div class="sub">Type your name to see your shifts.</div>
+<input id="q" type="search" placeholder="Your name" autocomplete="off" autofocus>
+<div id="out"></div>
+<div class="foot">Rostered ${data.people.length} people &middot; prepared ${data.generated}. Questions go to your coordinator.</div>
+</div>
+<script id="d" type="application/json">${JSON.stringify(data).replace(/</g, "\\\\u003c")}<\/script>
+<script>
+(function(){
+var D=JSON.parse(document.getElementById('d').textContent);
+var out=document.getElementById('out'),q=document.getElementById('q');
+function esc(x){var n=document.createElement('div');n.textContent=x==null?'':x;return n.innerHTML}
+function tm(t){var p=t.split(':');return +p[0]*60+ +p[1]}
+function pretty(t){var p=t.split(':'),h=+p[0],m=+p[1],ap=h<12?'am':'pm',hh=h%12===0?12:h%12;return m?hh+'.'+(m<10?'0':'')+m+ap:hh+ap}
+function dur(a,b){var x=tm(a),y=tm(b);if(y<=x)y+=1440;return (y-x)/60}
+function card(p){
+  var total=p.s.reduce(function(n,s){return n+dur(s.a,s.b)},0);
+  var h='<div class="card"><div class="pname">'+esc(p.n)+'</div>'+
+    '<div class="chips"><span class="chip">'+p.s.length+' shift'+(p.s.length===1?'':'s')+'</span>'+
+    '<span class="chip">'+total.toFixed(1)+'h</span></div>';
+  D.days.forEach(function(day){
+    var list=p.s.filter(function(s){return s.d===day.iso});
+    h+='<div class="day"><div class="dh"><b>'+esc(day.label)+'</b>';
+    if(!list.length){h+='<span>nothing rostered</span></div></div>';return}
+    var st=Math.min.apply(null,list.map(function(s){return tm(s.a)}));
+    var en=Math.max.apply(null,list.map(function(s){var x=tm(s.a),y=tm(s.b);return y<=x?y+1440:y}));
+    var hh=Math.floor(st/60),mm=st%60,eh=Math.floor(en/60)%24,em=en%60;
+    var f=function(a,b){return (a<10?'0':'')+a+':'+(b<10?'0':'')+b};
+    h+='<span>arrive '+pretty(f(hh,mm))+' &middot; finish '+pretty(f(eh,em))+'</span></div>';
+    list.forEach(function(s){
+      h+='<div class="row"><div class="t">'+pretty(s.a)+'&ndash;'+pretty(s.b)+'</div><div>'+
+         '<div class="r">'+esc(s.r)+(s.pic?' <span class="chip pic">you are PIC</span>':'')+
+         (s.k?' <span class="chip">'+esc(s.k)+'</span>':'')+'</div>'+
+         '<div class="v">'+esc(s.v)+(s.p?' &middot; '+esc(s.p):'')+'</div>'+
+         (s.w.length?'<div class="w">with '+esc(s.w.join(', '))+'</div>':'')+'</div></div>';
+    });
+    h+='</div>';
+  });
+  return h+'</div>';
+}
+function render(){
+  var t=q.value.trim().toLowerCase();
+  if(!t){out.innerHTML='<div class="none">'+D.people.length+' people are rostered. Start typing to find yours.</div>';return}
+  var exact=D.people.filter(function(p){return p.n.toLowerCase()===t});
+  var hits=exact.length?exact:D.people.filter(function(p){return p.n.toLowerCase().indexOf(t)>=0});
+  if(!hits.length){out.innerHTML='<div class="none">No one by that name is rostered. Try part of your name, or check with your coordinator.</div>';return}
+  if(hits.length>1){
+    out.innerHTML='<div class="none">'+hits.length+' people match &mdash; pick yours:</div>'+
+      hits.slice(0,15).map(function(p,i){return '<div class="hit" data-i="'+i+'">'+esc(p.n)+'</div>'}).join('');
+    Array.prototype.forEach.call(out.querySelectorAll('.hit'),function(n){
+      n.onclick=function(){q.value=hits[+n.getAttribute('data-i')].n;render()};
+    });
+    return;
+  }
+  out.innerHTML=card(hits[0]);
+}
+q.addEventListener('input',render);render();
+})();
+<\/script></body></html>`;
+}
+
+function esc(x) {
+  return String(x == null ? "" : x).replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
 /* =========================================================
    Wiring
    ========================================================= */
@@ -1863,6 +2319,7 @@ function switchTab(name) {
   $$("nav.tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === name)));
   $$(".panel").forEach(p => p.classList.toggle("active", p.id === "panel-" + name));
   if (name === "reports") renderReports();
+  if (name === "alloc") { renderLookup(); renderAlloc(); }
 }
 
 function refreshSelectors() {
@@ -1892,6 +2349,7 @@ function renderAll() {
   renderPeople();
   renderShifts();
   if ($("#panel-reports").classList.contains("active")) renderReports();
+  if ($("#panel-alloc").classList.contains("active")) { renderLookup(); renderAlloc(); }
 }
 
 function buildToggles() {
@@ -2083,6 +2541,17 @@ function wire() {
     if (text) eoiApplyClaude(text);
   };
   $("#eoiImportBtn").onclick = eoiImport;
+
+  // allocations
+  $("#lookupInput").oninput = renderLookup;
+  $("#allocGroup").onchange = renderAlloc;
+  $("#allocPrintBtn").onclick = () => window.print();
+  $("#allocCsvBtn").onclick = () => download(`allocations-${eventDays()[0]}.csv`, allocCsv());
+  $("#allocShareBtn").onclick = () => {
+    const rostered = db.people.filter(p => shiftsForPerson(p.id).length).length;
+    if (!rostered) return toast("Nobody is allocated yet");
+    download(`roster-${eventDays()[0]}.html`, shareableRoster(), "text/html");
+  };
 
   // reports
   $("#repDay").onchange = renderReports;

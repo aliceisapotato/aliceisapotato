@@ -193,7 +193,35 @@ many slots that affects and asks first.
 The staffing drawer shows each candidate's experience tier, Monash status and
 PIC eligibility, so manual picks have the same information the ranking used.
 
-### 5. Fix what's flagged, then hand it out
+### 5. Allocations — the finished roster
+
+The **Allocations** tab is the outcome of all the scheduling.
+
+**Find your shifts** is a name search for volunteers. Typing a name (or the
+email they used on the form) brings up their own card: total shifts and hours,
+then for each day when to arrive, when they finish, and every shift with its
+venue, post, and who else is on with them. Anyone holding the PIC desk is told
+so explicitly. Partial names offer a picker, an unknown name gets a plain
+explanation rather than an error, and somebody on the roster who has not been
+allocated anything yet is told that too.
+
+**Everyone's allocations** is the coordinator's view of the same data, grouped
+by person, by shift, or by venue and post, with anyone not yet used listed at
+the bottom. **Print** gives a clean copy for the noticeboard and **CSV** exports
+one row per person per shift.
+
+### Sending the roster to volunteers
+
+Do not hand round the scheduler itself. It holds phone numbers, emergency
+contacts, dietary requirements and every EOI answer.
+
+**Export shareable roster** builds a separate standalone HTML file containing
+only what a volunteer needs — names, times, venues, roles, posts and who they
+are on with. No emails, phone numbers, dietary notes, emergency contacts, EOI
+answers or priority scores. It has the same name search built in, works offline
+with no server, and is small enough to email or drop in a group chat.
+
+### 6. Fix what's flagged, then hand it out
 
 The Issues panel lists every gap and conflict live. **Print** gives a clean
 two-day board for the noticeboard; **CSV** exports one row per shift with the
