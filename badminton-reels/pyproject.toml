@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "badminton-reels"
+version = "0.1.0"
+description = "Split badminton match footage into rally highlights and render vertical clips for Instagram Reels"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["numpy>=1.21"]
+
+[project.scripts]
+bdr = "badminton_reels.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+badminton_reels = ["templates/*.html"]
