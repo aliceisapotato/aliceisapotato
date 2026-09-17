@@ -129,10 +129,23 @@ class TestConsole(unittest.TestCase):
         console.progress(0.5)
 
     def test_every_subcommand_has_a_handler(self):
-        for command in ("info", "analyze", "list", "review", "edit", "render", "reel", "auto"):
+        for command in ("info", "analyze", "list", "edit", "render", "reel", "auto"):
             with self.subTest(command=command):
                 args = parse(command, "x")
                 self.assertTrue(callable(args.func))
+        self.assertTrue(callable(parse("serve").func))
+
+    def test_serve_defaults_to_loopback(self):
+        args = parse("serve")
+        self.assertEqual(args.host, "127.0.0.1")
+        self.assertEqual(args.port, 8765)
+        self.assertIsNone(args.workspace)
+
+    def test_serve_takes_repeatable_media_folders(self):
+        args = parse("serve", "--media", "/a", "--media", "/b", "--no-open", "-p", "9000")
+        self.assertEqual(args.media, ["/a", "/b"])
+        self.assertTrue(args.no_open)
+        self.assertEqual(args.port, 9000)
 
 
 if __name__ == "__main__":

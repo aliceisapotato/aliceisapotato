@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>badminton-reels</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🏸</text></svg>">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header class="bar">
+  <div class="brand"><span class="logo">🏸</span> badminton-reels</div>
+  <div class="bar-group">
+    <select id="project-picker" title="Open a project"></select>
+    <button id="btn-new" class="ghost">New…</button>
+  </div>
+  <div class="bar-spacer"></div>
+  <div id="save-state" class="pill" data-state="idle">saved</div>
+  <div id="job-pill" class="pill hidden"></div>
+  <button id="btn-help" class="ghost" title="Keyboard shortcuts">?</button>
+</header>
+
+<!-- ───────────────────────── start screen ───────────────────────── -->
+<section id="screen-start" class="screen">
+  <div class="start-wrap">
+    <h1>Cut a match into rally highlights</h1>
+    <p class="lede">
+      Drop in a recording and the editor finds each rally, ranks them, and renders
+      vertical clips for Reels. Analysis runs once; re-cutting after that is instant.
+    </p>
+
+    <div id="dropzone" class="dropzone">
+      <input type="file" id="file-input" accept="video/*" hidden>
+      <div class="dz-inner">
+        <div class="dz-icon">↓</div>
+        <div><strong>Drop a video here</strong> or <button id="btn-browse" class="link">choose a file</button></div>
+        <div class="muted small" id="dz-hint">Landscape footage works best. Nothing is uploaded off this machine.</div>
+        <div class="progress hidden" id="upload-progress"><div class="progress-fill"></div></div>
+      </div>
+    </div>
+
+    <div class="start-cols">
+      <div class="panel">
+        <h2>In your media folder</h2>
+        <div id="media-list" class="list"></div>
+        <div class="muted small" id="media-hint"></div>
+      </div>
+      <div class="panel">
+        <h2>Detection settings</h2>
+        <div id="analyze-settings" class="fields"></div>
+        <label class="check"><input type="checkbox" id="opt-proxy" checked>
+          <span>Build a preview proxy <span class="muted">(recommended — smooth scrubbing, correct HDR colour)</span></span></label>
+        <button id="btn-analyze" class="primary wide" disabled>Select a video to analyse</button>
+        <div id="analyze-job" class="job hidden"></div>
+      </div>
+    </div>
+
+    <div class="panel" id="recent-panel">
+      <h2>Projects</h2>
+      <div id="project-list" class="list"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────────────────────── editor ───────────────────────── -->
+<section id="screen-editor" class="screen hidden">
+  <div class="stage">
+    <div class="stage-main">
+      <div class="players">
+        <div class="player-box">
+          <div class="video-wrap" id="video-wrap">
+            <video id="video" playsinline preload="auto"></video>
+            <div id="crop-layer" class="crop-layer"></div>
+          </div>
+          <div class="transport">
+            <button id="btn-prev" class="icon" title="Previous rally (k)">⏮</button>
+            <button id="btn-play" class="icon play" title="Play / pause (space)">▶</button>
+            <button id="btn-next" class="icon" title="Next rally (j)">⏭</button>
+            <button id="btn-loop" class="icon toggle" title="Loop the selected rally (l)">↻</button>
+            <span class="time" id="time-readout">0:00.0</span>
+            <span class="muted" id="duration-readout"></span>
+            <div class="bar-spacer"></div>
+            <label class="check inline" title="Play only kept rallies, skipping the gaps">
+              <input type="checkbox" id="opt-skip"><span>Play kept only</span></label>
+            <button id="btn-mark-in" class="ghost small" title="Set in point (i)">Set in</button>
+            <button id="btn-mark-out" class="ghost small" title="Set out point (o)">Set out</button>
+          </div>
+        </div>
+        <div class="reel-box">
+          <div class="reel-head">
+            <span>Reel preview</span>
+            <span class="muted small" id="reel-label">9:16</span>
+          </div>
+          <canvas id="reel-canvas" width="270" height="480"></canvas>
+          <div class="muted small centered" id="reel-note"></div>
+        </div>
+      </div>
+
+      <div class="timelines">
+        <canvas id="overview" height="58"></canvas>
+        <canvas id="detail" height="132"></canvas>
+        <div class="timeline-foot">
+          <span class="muted small" id="view-readout"></span>
+          <div class="bar-spacer"></div>
+          <button id="btn-zoom-out" class="ghost small" title="Zoom out (-)">−</button>
+          <button id="btn-zoom-fit" class="ghost small" title="Fit the whole match (0)">Fit</button>
+          <button id="btn-zoom-in" class="ghost small" title="Zoom in (+)">+</button>
+          <span class="muted small">drag a clip edge to trim · drag empty space to add</span>
+        </div>
+      </div>
+    </div>
+
+    <aside class="inspector">
+      <div class="tabs">
+        <button class="tab active" data-tab="rally">Rally</button>
+        <button class="tab" data-tab="framing">Framing</button>
+        <button class="tab" data-tab="render">Render</button>
+        <button class="tab" data-tab="detect">Detect</button>
+      </div>
+
+      <div class="tab-body" data-panel="rally">
+        <div id="rally-inspector"></div>
+      </div>
+
+      <div class="tab-body hidden" data-panel="framing">
+        <div class="fields" id="framing-fields"></div>
+        <div class="muted small">
+          Project defaults. A rally can override the layout, zoom, pan and speed in the
+          Rally tab.
+        </div>
+      </div>
+
+      <div class="tab-body hidden" data-panel="render">
+        <div class="fields" id="render-fields"></div>
+        <div class="row gap">
+          <button id="btn-render-clips" class="primary">Render kept clips</button>
+          <button id="btn-render-reel" class="primary">Render reel</button>
+        </div>
+        <button id="btn-render-one" class="ghost wide">Render just this rally</button>
+        <div id="render-job" class="job hidden"></div>
+        <h2>Output</h2>
+        <div id="outputs" class="list"></div>
+      </div>
+
+      <div class="tab-body hidden" data-panel="detect">
+        <div class="muted small">
+          Re-run rally detection from the signals already measured. No decoding, so
+          it finishes immediately.
+        </div>
+        <div class="fields" id="detect-fields"></div>
+        <button id="btn-redetect" class="primary wide">Re-detect rallies</button>
+        <div class="warn small">This replaces the rally list, losing manual trims.</div>
+        <div id="detect-job" class="job hidden"></div>
+        <h2>This file</h2>
+        <div id="analysis-facts" class="facts"></div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="strip-head">
+    <span id="strip-summary" class="muted small"></span>
+    <div class="bar-spacer"></div>
+    <button id="btn-keep-all" class="ghost small">Keep all</button>
+    <button id="btn-keep-top" class="ghost small">Keep best 8</button>
+    <button id="btn-renumber" class="ghost small">Renumber</button>
+    <select id="strip-sort" class="small">
+      <option value="time">Timeline order</option>
+      <option value="score">Best first</option>
+      <option value="shots">Most shots</option>
+    </select>
+  </div>
+  <div id="strip" class="strip"></div>
+</section>
+
+<div id="modal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-head"><span id="modal-title"></span>
+      <button id="modal-close" class="icon">✕</button></div>
+    <div id="modal-body" class="modal-body"></div>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

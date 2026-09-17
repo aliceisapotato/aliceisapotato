@@ -236,12 +236,28 @@ def _pad(
     return padded
 
 
-def highlight_score(segment: Segment, *, shot_target: float = 12.0, duration_target: float = 18.0) -> float:
-    """Rank rallies for a highlight reel: shot count first, then length."""
-    shots = min(segment.shots / max(shot_target, 1.0), 1.0)
-    length = min(segment.core_duration / max(duration_target, 1.0), 1.0)
-    intensity = min(segment.mean_activity, 1.0)
-    return round(0.45 * shots + 0.30 * length + 0.25 * intensity, 4)
+def score_rally(
+    shots: float,
+    duration: float,
+    activity: float,
+    *,
+    shot_target: float = 12.0,
+    duration_target: float = 18.0,
+) -> float:
+    """Rank a rally for a highlight reel: shot count first, then length.
+
+    Kept separate from ``Segment`` so that clips edited after detection - a
+    hand-trimmed rally, one half of a split - can be scored the same way.
+    """
+    shot_part = min(max(shots, 0.0) / max(shot_target, 1.0), 1.0)
+    length_part = min(max(duration, 0.0) / max(duration_target, 1.0), 1.0)
+    intensity = min(max(activity, 0.0), 1.0)
+    return round(0.45 * shot_part + 0.30 * length_part + 0.25 * intensity, 4)
+
+
+def highlight_score(segment: Segment, **kwargs) -> float:
+    """``score_rally`` for a detected segment."""
+    return score_rally(segment.shots, segment.core_duration, segment.mean_activity, **kwargs)
 
 
 def detect_rallies(

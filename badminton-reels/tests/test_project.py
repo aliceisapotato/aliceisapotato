@@ -39,7 +39,6 @@ def project(clip_count=3):
             shots=i * 3,
             detect_start=10.0 * i + 0.5,
             detect_end=10.0 * i + 7.0,
-            track=[[0.0, 0.4, 0.5], [1.0, 0.6, 0.5]],
         )
         for i in range(1, clip_count + 1)
     ]
@@ -72,6 +71,7 @@ class TestSourceInfo(unittest.TestCase):
 class TestProject(unittest.TestCase):
     def test_save_and_load_round_trip(self):
         original = project()
+        original.clips[0].track = [[0.0, 0.4, 0.5], [1.0, 0.6, 0.5]]
         with tempfile.TemporaryDirectory() as directory:
             path = os.path.join(directory, "sub", "project.json")
             original.save(path)
@@ -158,31 +158,131 @@ class TestProject(unittest.TestCase):
         self.assertTrue(rebuilt.is_hdr)
         self.assertTrue(rebuilt.has_audio)
 
-    def test_make_clips_attaches_tracks_and_curves(self):
-        import numpy as np
+    def test_make_clips_numbers_and_labels_rallies(self):
+        segments = [
+            Segment(2.0, 12.0, 2.5, 11.0, shots=9, score=0.7),
+            Segment(20.0, 28.0, 20.5, 27.0, shots=5, score=0.4),
+        ]
+        clips = make_clips(segments)
+        self.assertEqual([c.id for c in clips], ["r01", "r02"])
+        self.assertEqual([c.label for c in clips], ["Rally 1", "Rally 2"])
+        self.assertEqual(clips[0].shots, 9)
+        self.assertAlmostEqual(clips[0].detect_start, 2.5)
+        # Tracks live on the project, not the clip.
+        self.assertEqual(clips[0].track, [])
 
-        from badminton_reels.detect import ActivityCurve
-        from badminton_reels.motion import MotionTrack
+    def test_track_is_sliced_out_of_the_whole_match_track(self):
+        timeline = project(1)
+        # cx ramps 0 -> 1 across 40s at 10 Hz.
+        timeline.analysis["track"] = {
+            "rate": 10.0,
+            "cx": [i / 400.0 for i in range(400)],
+            "cy": [0.5] * 400,
+        }
+        clip = timeline.clips[0]
+        clip.set_range(10.0, 20.0)
+        times, cx, cy = timeline.track_for(clip)
+        self.assertAlmostEqual(times[0], 0.0, delta=0.11)
+        self.assertAlmostEqual(times[-1], 10.0, delta=0.21)
+        self.assertAlmostEqual(cx[0], 0.25, delta=0.02)
+        self.assertAlmostEqual(cx[-1], 0.50, delta=0.02)
+        self.assertTrue(all(v == 0.5 for v in cy))
 
-        motion = MotionTrack(
-            sample_rate=12.0,
-            energy=np.ones(240),
-            cx=np.linspace(0, 1, 240),
-            cy=np.full(240, 0.5),
-            heat=np.zeros((9, 16)),
-        )
-        times = np.arange(0, 20, 0.1)
-        curve = ActivityCurve(times, np.ones(times.size), np.ones(times.size), np.zeros(times.size))
-        segments = [Segment(2.0, 12.0, 2.5, 11.0, shots=9, score=0.7)]
-        clips = make_clips(segments, motion=motion, curve=curve, track_rate=6.0)
-        self.assertEqual(clips[0].id, "r01")
-        self.assertEqual(clips[0].label, "Rally 1")
-        self.assertGreater(len(clips[0].track), 10)
-        self.assertGreater(len(clips[0].curve), 10)
-        # Track times are relative to the clip, so a render never needs the
-        # absolute timeline.
-        self.assertAlmostEqual(clips[0].track[0][0], 0.0, delta=0.2)
-        self.assertLessEqual(clips[0].track[-1][0], clips[0].duration + 0.2)
+    def test_moving_a_clip_moves_its_track(self):
+        """The bug this design avoids: a trimmed clip keeping a stale pan."""
+        timeline = project(1)
+        timeline.analysis["track"] = {
+            "rate": 10.0,
+            "cx": [i / 400.0 for i in range(400)],
+            "cy": [0.5] * 400,
+        }
+        clip = timeline.clips[0]
+        clip.set_range(5.0, 15.0)
+        before = timeline.track_for(clip)[1][0]
+        clip.set_range(25.0, 35.0)
+        after = timeline.track_for(clip)[1][0]
+        self.assertGreater(after, before + 0.4)
+
+    def test_a_per_clip_track_override_wins(self):
+        timeline = project(1)
+        timeline.analysis["track"] = {"rate": 10.0, "cx": [0.1] * 100, "cy": [0.5] * 100}
+        timeline.clips[0].track = [[0.0, 0.9, 0.2], [1.0, 0.8, 0.3]]
+        times, cx, cy = timeline.track_for(timeline.clips[0])
+        self.assertEqual(cx, [0.9, 0.8])
+        self.assertEqual(cy, [0.2, 0.3])
+
+    def test_missing_track_data_is_not_fatal(self):
+        times, cx, cy = project(1).track_for(project(1).clips[0])
+        self.assertEqual((times, cx, cy), ([], [], []))
+
+
+class TestClipEditing(unittest.TestCase):
+    def timeline(self):
+        timeline = project(2)
+        timeline.analysis["impact_times"] = [11.0, 12.0, 13.0, 14.0, 15.5, 16.5]
+        return timeline
+
+    def test_add_clip_keeps_the_timeline_sorted_with_unique_ids(self):
+        timeline = self.timeline()
+        added = timeline.add_clip(5.0, 9.0, label="Best point")
+        self.assertEqual(added.id, "r03")
+        self.assertEqual([c.start for c in timeline.clips], sorted(c.start for c in timeline.clips))
+        self.assertEqual(len({c.id for c in timeline.clips}), 3)
+        self.assertEqual(added.label, "Best point")
+
+    def test_add_clip_is_clamped_to_the_source(self):
+        timeline = self.timeline()
+        clip = timeline.add_clip(-5.0, 1e9)
+        self.assertEqual(clip.start, 0.0)
+        self.assertAlmostEqual(clip.end, timeline.duration)
+
+    def test_add_clip_refuses_an_empty_range(self):
+        with self.assertRaises(ProjectError):
+            self.timeline().add_clip(10.0, 10.1)
+
+    def test_split_divides_the_span_and_recounts_impacts(self):
+        timeline = self.timeline()
+        target = timeline.by_id("r02")       # 20.0 - 28.0
+        timeline.analysis["impact_times"] = [21.0, 22.0, 26.0]
+        head, tail = timeline.split_clip("r02", 24.0)
+        self.assertAlmostEqual(head.end, 24.0)
+        self.assertAlmostEqual(tail.start, 24.0)
+        self.assertAlmostEqual(tail.end, 28.0)
+        self.assertEqual(head.shots, 2)
+        self.assertEqual(tail.shots, 1)
+        self.assertEqual(len(timeline.clips), 3)
+        self.assertIs(head, target)
+
+    def test_split_inherits_per_clip_overrides(self):
+        timeline = self.timeline()
+        timeline.by_id("r02").layout = "stack"
+        timeline.by_id("r02").speed = 0.5
+        _, tail = timeline.split_clip("r02", 24.0)
+        self.assertEqual(tail.layout, "stack")
+        self.assertAlmostEqual(tail.speed, 0.5)
+
+    def test_split_too_close_to_an_edge_is_refused(self):
+        timeline = self.timeline()
+        for at in (20.1, 27.95, 5.0, 100.0):
+            with self.subTest(at=at), self.assertRaises(ProjectError):
+                timeline.split_clip("r02", at)
+
+    def test_remove_clip(self):
+        timeline = self.timeline()
+        timeline.remove_clip("r01")
+        self.assertEqual([c.id for c in timeline.clips], ["r02"])
+        with self.assertRaises(ProjectError):
+            timeline.remove_clip("r01")
+
+    def test_count_impacts_in_a_span(self):
+        timeline = self.timeline()
+        self.assertEqual(timeline.count_impacts(11.0, 14.0), 4)
+        self.assertEqual(timeline.count_impacts(0.0, 5.0), 0)
+
+    def test_set_range_refuses_to_invert_a_clip(self):
+        clip = self.timeline().clips[0]
+        with self.assertRaises(ProjectError):
+            clip.set_range(20.0, 19.0)
 
 
 class TestRenderOptions(unittest.TestCase):

@@ -17,4 +17,4 @@ bdr = "badminton_reels.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-badminton_reels = ["templates/*.html"]
+badminton_reels = ["web/*"]

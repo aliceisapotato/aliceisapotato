@@ -15,9 +15,9 @@ from .audio import AudioTrack, analyze_audio, empty_track
 from .detect import ActivityCurve, DetectParams, Segment, detect_rallies, select_for_reel
 from .errors import ProjectError
 from .framing import Canvas, PanParams, plan_frame
-from .motion import MotionTrack, Roi, analyze_motion
+from .motion import MotionTrack, ProxyRequest, Roi, analyze_motion
 from .probe import VideoInfo, probe
-from .project import Clip, Project, make_clips, source_dict
+from .project import Clip, Project, curve_dict, make_clips, source_dict, track_dict
 from .render import EncodeParams, RenderOptions, concat_clips, render_clip
 
 Reporter = Optional[Callable[[str], None]]
@@ -68,6 +68,7 @@ def analyze(
     report: Reporter = None,
     progress: Optional[Callable[[float], None]] = None,
     render_defaults: Optional["RenderOptions"] = None,
+    proxy: Optional[ProxyRequest] = None,
 ) -> AnalysisResult:
     """Probe, measure, detect rallies, and build a project for ``path``."""
     settings = settings or AnalyzeSettings()
@@ -89,6 +90,7 @@ def analyze(
         roi=settings.roi,
         auto_roi=settings.auto_roi,
         hwaccel=settings.hwaccel,
+        proxy=proxy,
         progress=progress,
     )
     if motion.roi:
@@ -109,18 +111,24 @@ def analyze(
 
     project = Project(
         source=source_dict(info),
-        clips=make_clips(segments, motion=motion, curve=curve, track_rate=settings.sample_rate),
+        clips=make_clips(segments),
         created=time.strftime("%Y-%m-%dT%H:%M:%S"),
         analysis={
             "settings": settings.to_dict(),
             "roi": [round(v, 4) for v in motion.roi] if motion.roi else None,
             "impacts": int(audio.onsets.size),
+            "impact_times": [round(float(t), 2) for t in audio.onsets],
             "enter_threshold": round(curve.enter_threshold, 4),
             "exit_threshold": round(curve.exit_threshold, 4),
+            "track": track_dict(motion, rate=settings.sample_rate),
+            "curve": curve_dict(curve),
             "tool_version": _version(),
         },
         render=render_options_to_dict(render_defaults or RenderOptions()),
     )
+    if proxy is not None:
+        # Stored relative to the project file so the folder can be moved.
+        project.analysis["proxy"] = os.path.basename(proxy.path)
     return AnalysisResult(project, info, motion, audio, curve, segments)
 
 
@@ -230,8 +238,8 @@ def auto_label(clip: Clip) -> str:
     return name
 
 
-def _plan_for(clip: Clip, info: VideoInfo, options: RenderOptions) -> Any:
-    times, cx, cy = clip.track_arrays()
+def _plan_for(project: Project, clip: Clip, info: VideoInfo, options: RenderOptions) -> Any:
+    times, cx, cy = project.track_for(clip)
     speed = max(options.speed, 1e-6)
     if speed != 1.0:
         times = [t / speed for t in times]
@@ -258,6 +266,7 @@ def render_clips(
     clips: Optional[Sequence[Clip]] = None,
     labels: bool = False,
     report: Reporter = None,
+    progress: Optional[Callable[[float], None]] = None,
     quiet: bool = True,
 ) -> List[str]:
     """Render each selected clip as its own vertical MP4."""
@@ -285,7 +294,7 @@ def render_clips(
             end=clip.end,
             out_path=out_path,
             options=clip_options,
-            plan=_plan_for(clip, info, clip_options),
+            plan=_plan_for(project, clip, info, clip_options),
             label=auto_label(clip) if labels else None,
             quiet=quiet,
         )
@@ -294,6 +303,8 @@ def render_clips(
                 seen_warnings.add(warning)
                 say("warning: %s" % warning)
         written.append(out_path)
+        if progress is not None:
+            progress(index / float(len(selected)))
     return written
 
 
@@ -306,6 +317,7 @@ def render_reel(
     max_duration: Optional[float] = 90.0,
     labels: bool = True,
     report: Reporter = None,
+    progress: Optional[Callable[[float], None]] = None,
     quiet: bool = True,
     keep_parts: Optional[str] = None,
 ) -> Tuple[str, List[Clip]]:
@@ -335,9 +347,15 @@ def render_reel(
             clips=chosen,
             labels=labels,
             report=report,
+            # Leave the last slice of the bar for the join.
+            progress=(lambda value: progress(value * 0.95)) if progress else None,
             quiet=quiet,
         )
+        if report:
+            report("joining %d clips" % len(parts))
         concat_clips(parts, out_path, quiet=quiet)
+        if progress:
+            progress(1.0)
     finally:
         if keep_parts is None:
             shutil.rmtree(work_dir, ignore_errors=True)

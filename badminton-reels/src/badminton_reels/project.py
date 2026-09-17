@@ -15,10 +15,14 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
+from .detect import score_rally
 from .errors import ProjectError
 from .probe import VideoInfo, format_duration
 
 PROJECT_VERSION = 1
+
+# Shorter than this and there is nothing to watch.
+MIN_CLIP_DURATION = 0.4
 
 
 @dataclass
@@ -40,10 +44,11 @@ class Clip:
     zoom: Optional[float] = None
     pan: Optional[str] = None
     speed: Optional[float] = None
-    # Sampled action position: [[t_relative, cx, cy], ...]
+    # Optional per-clip override of the action track, as
+    # ``[[t_relative, cx, cy], ...]``. Normally left empty: the track is
+    # sliced out of the whole-match track in ``Project.track_for`` so that
+    # moving a clip's in-point cannot leave its pan behind.
     track: List[List[float]] = field(default_factory=list, repr=False)
-    # Sampled activity score for the review page: [[t_relative, score], ...]
-    curve: List[List[float]] = field(default_factory=list, repr=False)
 
     @property
     def duration(self) -> float:
@@ -56,10 +61,23 @@ class Clip:
         return max(0.0, self.detect_end - self.detect_start)
 
     def track_arrays(self) -> Tuple[List[float], List[float], List[float]]:
+        """The per-clip track override, if one was stored."""
         times = [float(p[0]) for p in self.track]
         cx = [float(p[1]) for p in self.track]
         cy = [float(p[2]) if len(p) > 2 else 0.5 for p in self.track]
         return times, cx, cy
+
+    def set_range(self, start: float, end: float, *, limit: float = 0.0) -> None:
+        """Move both cut points, keeping the clip inside the source."""
+        start = max(0.0, float(start))
+        end = float(end)
+        if limit > 0:
+            end = min(end, limit)
+        if end - start < MIN_CLIP_DURATION:
+            raise ProjectError(
+                "a clip must be at least %.1fs long" % MIN_CLIP_DURATION
+            )
+        self.start, self.end = round(start, 3), round(end, 3)
 
     def to_dict(self) -> Dict[str, Any]:
         """Drop unset overrides so hand-editing a project file stays pleasant."""
@@ -121,6 +139,43 @@ class Project:
             audio_channels=source.get("audio_channels"),
         )
 
+    # -- whole-match signals ---------------------------------------------
+    @property
+    def preview_path(self) -> Optional[str]:
+        """The scrub proxy, resolved next to the project file."""
+        name = (self.analysis.get("proxy") or "") if self.analysis else ""
+        if not name:
+            return None
+        if os.path.isabs(name):
+            return name
+        base = os.path.dirname(os.path.abspath(self.path)) if self.path else "."
+        return os.path.join(base, name)
+
+    def track_for(self, clip: Clip) -> Tuple[List[float], List[float], List[float]]:
+        """Action track for ``clip``, with times relative to its in-point.
+
+        Sliced out of the whole-match track, so a clip that has just been
+        trimmed or dragged gets the pan for where it now sits.
+        """
+        if clip.track:
+            return clip.track_arrays()
+        track = (self.analysis or {}).get("track") or {}
+        rate = float(track.get("rate") or 0.0)
+        cx_all, cy_all = track.get("cx") or [], track.get("cy") or []
+        if rate <= 0 or not cx_all:
+            return [], [], []
+        count = len(cx_all)
+        first = max(0, int(clip.start * rate))
+        last = min(count - 1, int(clip.end * rate) + 1)
+        if last < first:
+            first = last = min(max(first, 0), count - 1)
+        times, cx, cy = [], [], []
+        for index in range(first, last + 1):
+            times.append(round(max(0.0, index / rate - clip.start), 3))
+            cx.append(float(cx_all[index]))
+            cy.append(float(cy_all[index]) if index < len(cy_all) else 0.5)
+        return times, cx, cy
+
     # -- clip helpers -----------------------------------------------------
     def kept(self) -> List[Clip]:
         return [clip for clip in self.clips if clip.keep]
@@ -159,6 +214,95 @@ class Project:
             raise ProjectError("trimming %s would leave less than 0.2s" % clip_id)
         clip.start, clip.end = round(start, 3), round(end, 3)
         return clip
+
+    def next_id(self) -> str:
+        """The next free clip id, so ids stay unique after edits."""
+        used = {clip.id for clip in self.clips}
+        index = len(self.clips) + 1
+        while clip_id(index) in used:
+            index += 1
+        return clip_id(index)
+
+    def add_clip(
+        self, start: float, end: float, *, label: Optional[str] = None
+    ) -> Clip:
+        """Add a rally the detector missed."""
+        clip = Clip(id=self.next_id(), start=0.0, end=1.0, keep=True)
+        clip.set_range(start, end, limit=self.duration)
+        clip.label = label or "Rally"
+        self.rescore(clip)
+        self.clips.append(clip)
+        self.sort()
+        return clip
+
+    def split_clip(self, clip_id_: str, at: float) -> Tuple[Clip, Clip]:
+        """Cut one clip in two at ``at`` seconds on the source timeline."""
+        clip = self.by_id(clip_id_)
+        if not clip.start + MIN_CLIP_DURATION <= at <= clip.end - MIN_CLIP_DURATION:
+            raise ProjectError(
+                "%.2fs is not far enough inside %s (%.2f-%.2f) to split it"
+                % (at, clip_id_, clip.start, clip.end)
+            )
+        tail = Clip(
+            id=self.next_id(),
+            start=round(at, 3),
+            end=clip.end,
+            keep=clip.keep,
+            label=(clip.label or clip.id) + " b",
+            shots=0,
+            layout=clip.layout,
+            zoom=clip.zoom,
+            pan=clip.pan,
+            speed=clip.speed,
+        )
+        clip.end = round(at, 3)
+        # The counts and score belonged to the original span; redo both halves.
+        self.rescore(clip)
+        self.rescore(tail)
+        clip.detect_start = clip.detect_end = None
+        self.clips.append(tail)
+        self.sort()
+        return clip, tail
+
+    def remove_clip(self, clip_id_: str) -> Clip:
+        clip = self.by_id(clip_id_)
+        self.clips.remove(clip)
+        return clip
+
+    def count_impacts(self, start: float, end: float) -> int:
+        """Racket impacts inside a span, from the stored impact times."""
+        impacts = (self.analysis or {}).get("impact_times") or []
+        return sum(1 for t in impacts if start <= t <= end)
+
+    def mean_activity(self, start: float, end: float) -> float:
+        """Average fused activity over a span, from the stored curve."""
+        curve = (self.analysis or {}).get("curve") or {}
+        scores = curve.get("score") or []
+        rate = float(curve.get("rate") or 0.0)
+        if not scores or rate <= 0 or end <= start:
+            return 0.0
+        first = max(0, int(start * rate))
+        last = min(len(scores) - 1, int(end * rate))
+        if last < first:
+            return float(scores[first]) if first < len(scores) else 0.0
+        window = scores[first : last + 1]
+        return sum(float(v) for v in window) / len(window)
+
+    def rescore(self, clip: Clip) -> Clip:
+        """Recount impacts and re-rank a clip after its range changed.
+
+        Without this a hand-trimmed or split rally would keep a score that
+        describes a span it no longer covers - and "keep the best eight"
+        would quietly rank it last.
+        """
+        clip.shots = self.count_impacts(clip.start, clip.end)
+        clip.score = score_rally(
+            clip.shots, clip.duration, self.mean_activity(clip.start, clip.end)
+        )
+        return clip
+
+    def sort(self) -> None:
+        self.clips.sort(key=lambda clip: (clip.start, clip.id))
 
     def total_duration(self, *, only_kept: bool = True) -> float:
         clips = self.kept() if only_kept else self.clips
@@ -266,48 +410,50 @@ def clip_id(index: int) -> str:
     return "r%02d" % index
 
 
-def make_clips(
-    segments: Sequence[Any],
-    *,
-    motion: Any = None,
-    curve: Any = None,
-    track_rate: float = 12.0,
-    curve_rate: float = 5.0,
-) -> List[Clip]:
-    """Build timeline clips from detected segments, attaching their tracks."""
+def make_clips(segments: Sequence[Any]) -> List[Clip]:
+    """Build timeline clips from detected segments."""
     clips: List[Clip] = []
     for index, segment in enumerate(segments, start=1):
-        clip = Clip(
-            id=clip_id(index),
-            start=round(float(segment.start), 3),
-            end=round(float(segment.end), 3),
-            label="Rally %d" % index,
-            score=round(float(segment.score), 4),
-            shots=int(segment.shots),
-            detect_start=round(float(segment.detect_start), 3),
-            detect_end=round(float(segment.detect_end), 3),
+        clips.append(
+            Clip(
+                id=clip_id(index),
+                start=round(float(segment.start), 3),
+                end=round(float(segment.end), 3),
+                label="Rally %d" % index,
+                score=round(float(segment.score), 4),
+                shots=int(segment.shots),
+                detect_start=round(float(segment.detect_start), 3),
+                detect_end=round(float(segment.detect_end), 3),
+            )
         )
-        if motion is not None:
-            times, cx, cy = motion.window(clip.start, clip.end)
-            step = max(1, int(round(motion.sample_rate / max(track_rate, 0.5))))
-            track: List[List[float]] = []
-            for t, x, y in zip(times[::step], cx[::step], cy[::step]):
-                # The window includes the sample straddling the in-point, so
-                # clamp to the clip and keep the times strictly increasing.
-                relative = round(max(0.0, float(t) - clip.start), 3)
-                if track and relative <= track[-1][0]:
-                    track[-1] = [relative, round(float(x), 4), round(float(y), 4)]
-                    continue
-                track.append([relative, round(float(x), 4), round(float(y), 4)])
-            clip.track = track
-        if curve is not None:
-            times, score = curve.slice(clip.start, clip.end)
-            if len(times):
-                grid = times[1] - times[0] if len(times) > 1 else 0.1
-                step = max(1, int(round((1.0 / max(curve_rate, 0.5)) / max(grid, 1e-6))))
-                clip.curve = [
-                    [round(float(t) - clip.start, 2), round(float(s), 3)]
-                    for t, s in zip(times[::step], score[::step])
-                ]
-        clips.append(clip)
     return clips
+
+
+def track_dict(motion: Any, *, rate: float = 12.0) -> Dict[str, Any]:
+    """The whole-match action track, decimated and rounded for JSON.
+
+    Stored once for the file rather than per clip: the editor needs it to
+    draw the timeline, and clips slice it as they are moved about.
+    """
+    if motion is None or motion.sample_rate <= 0 or motion.energy.size == 0:
+        return {}
+    step = max(1, int(round(motion.sample_rate / max(rate, 0.5))))
+    return {
+        "rate": round(motion.sample_rate / step, 6),
+        "cx": [round(float(v), 3) for v in motion.cx[::step]],
+        "cy": [round(float(v), 3) for v in motion.cy[::step]],
+    }
+
+
+def curve_dict(curve: Any, *, rate: float = 4.0) -> Dict[str, Any]:
+    """The activity score for the whole match, for the timeline graph."""
+    if curve is None or len(curve.times) == 0:
+        return {}
+    grid = float(curve.times[1] - curve.times[0]) if len(curve.times) > 1 else 0.1
+    step = max(1, int(round((1.0 / max(rate, 0.5)) / max(grid, 1e-6))))
+    return {
+        "rate": round(1.0 / (grid * step), 6),
+        "score": [round(float(v), 3) for v in curve.score[::step]],
+        "enter": round(float(curve.enter_threshold), 4),
+        "exit": round(float(curve.exit_threshold), 4),
+    }

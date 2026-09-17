@@ -28,6 +28,7 @@ from .ffutil import (
     join_filters,
     run,
 )
+from .color import tonemap_chain
 from .framing import Canvas, FramePlan, PanParams, plan_frame, sendcmd_script
 from .probe import VideoInfo
 
@@ -108,38 +109,6 @@ def find_font() -> Optional[str]:
         except OSError:
             pass
     return None
-
-
-def tonemap_chain(info: VideoInfo, npl: float = 100.0) -> Tuple[str, Optional[str]]:
-    """Filter chain that converts an HDR source to SDR bt709.
-
-    Returns the chain and, when the build cannot do it properly, a warning.
-    """
-    if has_filter("zscale"):
-        transfer = info.color_transfer or "arib-std-b67"
-        parts = ["zscale=tin=%s:t=linear:npl=%g" % (transfer, npl)]
-        if info.color_primaries:
-            parts[0] += ":pin=%s" % info.color_primaries
-        if info.color_space:
-            parts[0] += ":min=%s" % info.color_space
-        parts += [
-            "format=gbrpf32le",
-            "tonemap=tonemap=hable:desat=0",
-            "zscale=p=bt709:t=bt709:m=bt709:r=tv",
-            "format=yuv420p",
-        ]
-        return join_filters(parts), None
-    if has_filter("colorspace"):
-        return (
-            "colorspace=all=bt709:iall=bt2020-10:fast=1,format=yuv420p",
-            "this ffmpeg has no zscale filter, so HDR tone mapping is approximate; "
-            "colours may look flat. Install a full ffmpeg build for the proper curve.",
-        )
-    return (
-        "format=yuv420p",
-        "this ffmpeg can neither tone map nor convert colour spaces; HDR footage "
-        "will look washed out. Install a full ffmpeg build, or shoot in SDR.",
-    )
 
 
 def _atempo_chain(speed: float) -> str:

@@ -1,10 +1,10 @@
 """Command line interface.
 
+    bdr serve                        # the web editor: analyse, cut, render
     bdr analyze match.mov            # find the rallies, write project.json
-    bdr review project.json          # open the review page, drop the duds
     bdr render project.json -o clips # one vertical MP4 per rally
     bdr reel   project.json -o reel.mp4
-    bdr auto   match.mov -o out      # all of the above in one go
+    bdr auto   match.mov -o out      # analyse and render in one go
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ from .pipeline import (
 from .probe import format_duration, parse_timecode, probe
 from .project import Project
 from .render import RenderOptions
-from .review import build_review
+from .server import serve
 
 PROGRAM = "bdr"
 
@@ -313,10 +313,10 @@ def cmd_analyze(args: argparse.Namespace, console: Console) -> int:
             "no rallies found. Try --sensitivity 1.5, --min-shots 1, or --enter 0.35; "
             "`bdr info` will tell you whether the file even has audio."
         )
-    if args.review:
-        page = os.path.splitext(out_path)[0] + "-review.html"
-        build_review(project, page, thumbnails=not args.no_thumbs, report=console.say)
-        console.out(page)
+    console.say(
+        "the browser editor keeps its own workspace; `%s serve` analyses and cuts "
+        "there, or move this project to projects/<name>/project.json inside it." % PROGRAM
+    )
     return 0
 
 
@@ -326,12 +326,15 @@ def cmd_list(args: argparse.Namespace, console: Console) -> int:
     return 0
 
 
-def cmd_review(args: argparse.Namespace, console: Console) -> int:
-    project = Project.load(args.project)
-    out_path = args.output or os.path.splitext(args.project)[0] + "-review.html"
-    build_review(project, out_path, thumbnails=not args.no_thumbs, report=console.say)
-    console.out(out_path)
-    console.say("open it in a browser, then load the video file when it asks")
+def cmd_serve(args: argparse.Namespace, console: Console) -> int:
+    serve(
+        host=args.host,
+        port=args.port,
+        workspace_root=args.workspace,
+        media=args.media or (),
+        open_browser=not args.no_open,
+        report=console.out,
+    )
     return 0
 
 
@@ -491,14 +494,6 @@ def cmd_auto(args: argparse.Namespace, console: Console) -> int:
         console.say("no rallies detected, so nothing was rendered")
         return 1
 
-    if not args.no_review:
-        build_review(
-            project,
-            os.path.join(out_dir, "review.html"),
-            thumbnails=not args.no_thumbs,
-            report=console.say,
-        )
-
     base = render_options_from_args(args, render_options_from_dict(project.render))
     outputs: List[str] = []
     if not args.no_clips:
@@ -526,7 +521,10 @@ def cmd_auto(args: argparse.Namespace, console: Console) -> int:
     console.out(out_dir)
     console.say("")
     console.say("wrote %d file(s). Project: %s" % (len(outputs), project_path))
-    console.say("review and re-cut with:  %s review %s" % (PROGRAM, project_path))
+    console.say(
+        "to re-cut this in the browser, move the project into the editor's "
+        "workspace as projects/<name>/project.json, or start from `%s serve`." % PROGRAM
+    )
     return 0
 
 
@@ -587,10 +585,11 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "typical session:\n"
-            "  bdr auto match.mov -o out            one-shot: detect, review page, clips, reel\n"
-            "  bdr analyze match.mov --review       detect and build a review page\n"
-            "  bdr edit out/project.json --drop r04 --renumber\n"
-            "  bdr reel out/project.json --top 8 -o reel.mp4\n"
+            "  bdr serve                            the web editor; everything below, in a browser\n"
+            "  bdr auto match.mov -o out            one-shot: detect, clips and a reel\n"
+            "  bdr analyze match.mov -o p.json      detect rallies only\n"
+            "  bdr edit p.json --drop r04 --renumber\n"
+            "  bdr reel p.json --top 8 -o reel.mp4\n"
         ),
     )
     parser.add_argument("--version", action="version", version="%(prog)s " + __version__)
@@ -607,8 +606,6 @@ def build_parser() -> argparse.ArgumentParser:
     analyze_parser = subparsers.add_parser("analyze", help="detect rallies and write a project file", parents=[common])
     analyze_parser.add_argument("video")
     analyze_parser.add_argument("-o", "--output", metavar="FILE", help="project file to write")
-    analyze_parser.add_argument("--review", action="store_true", help="also build the review page")
-    analyze_parser.add_argument("--no-thumbs", action="store_true", help="skip review thumbnails")
     add_analysis_args(analyze_parser)
     add_detect_args(analyze_parser)
     add_framing_args(analyze_parser)
@@ -619,11 +616,20 @@ def build_parser() -> argparse.ArgumentParser:
     list_parser.add_argument("project")
     list_parser.set_defaults(func=cmd_list)
 
-    review_parser = subparsers.add_parser("review", help="build the offline review page", parents=[common])
-    review_parser.add_argument("project")
-    review_parser.add_argument("-o", "--output", metavar="FILE")
-    review_parser.add_argument("--no-thumbs", action="store_true")
-    review_parser.set_defaults(func=cmd_review)
+    serve_parser = subparsers.add_parser(
+        "serve", help="open the web editor (analyse, cut and render in a browser)",
+        parents=[common],
+    )
+    serve_parser.add_argument("-p", "--port", type=int, default=8765, help="default 8765")
+    serve_parser.add_argument("--host", default="127.0.0.1",
+                              help="interface to bind; loopback only (default 127.0.0.1)")
+    serve_parser.add_argument("-w", "--workspace", metavar="DIR",
+                              help="where projects and renders live (default ~/badminton-reels)")
+    serve_parser.add_argument("--media", action="append", metavar="DIR",
+                              help="extra folder of source videos the editor may read; repeatable")
+    serve_parser.add_argument("--no-open", action="store_true",
+                              help="do not open a browser window")
+    serve_parser.set_defaults(func=cmd_serve)
 
     edit_parser = subparsers.add_parser("edit", help="change a project from the command line", parents=[common])
     edit_parser.add_argument("project")
@@ -660,7 +666,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_encode_args(reel_parser)
     reel_parser.set_defaults(func=cmd_reel)
 
-    auto_parser = subparsers.add_parser("auto", help="analyze, review page, clips and reel in one go", parents=[common])
+    auto_parser = subparsers.add_parser("auto", help="analyse and render clips plus a reel in one go", parents=[common])
     auto_parser.add_argument("video")
     auto_parser.add_argument("-o", "--output", metavar="DIR", help="output directory")
     auto_parser.add_argument("--top", type=int, default=None, metavar="N",
@@ -668,8 +674,6 @@ def build_parser() -> argparse.ArgumentParser:
     auto_parser.add_argument("--max-duration", type=float, default=90.0, metavar="SEC")
     auto_parser.add_argument("--no-clips", action="store_true", help="skip the per-rally clips")
     auto_parser.add_argument("--no-reel", action="store_true", help="skip the compilation")
-    auto_parser.add_argument("--no-review", action="store_true", help="skip the review page")
-    auto_parser.add_argument("--no-thumbs", action="store_true", help="skip review thumbnails")
     add_analysis_args(auto_parser)
     add_detect_args(auto_parser)
     add_framing_args(auto_parser)

@@ -16,7 +16,6 @@ from badminton_reels.ffutil import have_binaries
 from badminton_reels.pipeline import AnalyzeSettings, analyze, render_clips, render_reel
 from badminton_reels.probe import probe
 from badminton_reels.project import Project
-from badminton_reels.review import build_review
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import make_fixture  # noqa: E402
@@ -74,14 +73,29 @@ class TestEndToEnd(unittest.TestCase):
         self.assertLess(x + width, 0.95)
         self.assertGreater(height, 0.2)
 
-    def test_tracks_are_stored_for_rendering(self):
+    def test_whole_match_signals_are_stored(self):
+        analysis = self.project.analysis
+        track, curve = analysis["track"], analysis["curve"]
+        self.assertGreater(track["rate"], 0)
+        self.assertGreater(len(track["cx"]), 100)
+        self.assertEqual(len(track["cx"]), len(track["cy"]))
+        self.assertTrue(all(0.0 <= v <= 1.0 for v in track["cx"]))
+        # The track should span the file, not just the rallies.
+        self.assertAlmostEqual(
+            len(track["cx"]) / track["rate"], FIXTURE_DURATION, delta=1.5
+        )
+        self.assertGreater(len(curve["score"]), 50)
+        self.assertGreater(curve["enter"], curve["exit"])
+        self.assertGreater(len(analysis["impact_times"]), 10)
+
+    def test_a_clip_track_follows_its_in_point(self):
         clip = self.project.clips[0]
-        self.assertGreater(len(clip.track), 10)
-        for t, cx, cy in clip.track:
-            self.assertGreaterEqual(t, 0.0)
-            self.assertLessEqual(t, clip.duration + 0.5)
-            self.assertTrue(0.0 <= cx <= 1.0)
-            self.assertTrue(0.0 <= cy <= 1.0)
+        times, cx, cy = self.project.track_for(clip)
+        self.assertGreater(len(times), 10)
+        self.assertAlmostEqual(times[0], 0.0, delta=0.2)
+        self.assertLessEqual(times[-1], clip.duration + 0.3)
+        self.assertTrue(all(0.0 <= v <= 1.0 for v in cx))
+        self.assertTrue(all(0.0 <= v <= 1.0 for v in cy))
 
     def test_project_reloads_and_renders_reels_ready_clips(self):
         reloaded = Project.load(self.project.path)
@@ -164,26 +178,15 @@ class TestEndToEnd(unittest.TestCase):
         duration = float(ffprobe_json(written[0])["format"]["duration"])
         self.assertAlmostEqual(duration, project.clips[0].duration / 0.5, delta=0.5)
 
-    def test_review_page_is_self_contained(self):
-        page = os.path.join(self.directory, "review.html")
-        build_review(self.project, page)
-        with open(page, encoding="utf-8") as handle:
-            html = handle.read()
-        self.assertIn("const DATA = {", html)
-        self.assertIn("data:image/jpeg;base64,", html)   # thumbnails inlined
-        self.assertNotIn("http://", html)                 # nothing to fetch
-        self.assertIn('"clips"', html)
-
     def test_cli_runs_the_whole_flow(self):
         out_dir = os.path.join(self.directory, "auto")
         proc = subprocess.run(
             [sys.executable, "-m", "badminton_reels", "auto", self.video,
-             "-o", out_dir, "--top", "2", "--no-thumbs"],
+             "-o", out_dir, "--top", "2"],
             capture_output=True, text=True,
         )
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertTrue(os.path.isfile(os.path.join(out_dir, "project.json")))
-        self.assertTrue(os.path.isfile(os.path.join(out_dir, "review.html")))
         self.assertTrue(os.path.isfile(os.path.join(out_dir, "reel.mp4")))
         self.assertTrue(os.listdir(os.path.join(out_dir, "clips")))
 

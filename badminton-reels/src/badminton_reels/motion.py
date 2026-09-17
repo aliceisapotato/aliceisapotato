@@ -21,6 +21,7 @@ from typing import Callable, List, Optional, Sequence, Tuple
 
 import numpy as np
 
+from .color import tonemap_chain
 from .errors import RenderError
 from .ffutil import FAST_DECODE_FLAGS, FFMPEG, join_filters
 from .probe import VideoInfo
@@ -78,6 +79,24 @@ class MotionTrack:
             i1 = min(len(self.energy), i0 + 1)
         idx = np.arange(i0, i1)
         return idx / self.sample_rate, self.cx[idx], self.cy[idx]
+
+
+@dataclass
+class ProxyRequest:
+    """A low-resolution H.264 copy for scrubbing in a browser.
+
+    It is produced by the analysis decode rather than a pass of its own: the
+    source is already being decoded, so the proxy costs only its encode.
+    """
+
+    path: str
+    height: int = 720
+    fps: float = 30.0
+    crf: int = 26
+    tonemap: Optional[bool] = None  # None means "decide from the source"
+
+    def wants_tonemap(self, info: VideoInfo) -> bool:
+        return info.is_hdr if self.tonemap is None else bool(self.tonemap)
 
 
 def _even(value: float, multiple: int = 2) -> int:
@@ -218,24 +237,52 @@ def analyze_motion(
     auto_roi: bool = True,
     memory_budget_mb: float = 384.0,
     hwaccel: Optional[str] = None,
+    proxy: Optional[ProxyRequest] = None,
     progress: ProgressFn = None,
 ) -> MotionTrack:
-    """Decode ``info`` once at low resolution and measure movement over time."""
+    """Decode ``info`` once at low resolution and measure movement over time.
+
+    When ``proxy`` is given, the same decode also writes a small H.264 copy
+    for the editor to scrub, tone mapped if the source is HDR.
+    """
     fine_w = _even(max(64, analysis_width), ROI_BLOCK * 2)
     fine_h = _even(max(36, fine_w / max(info.aspect, 0.1)), ROI_BLOCK * 2)
     coarse_w, coarse_h = fine_w // ROI_BLOCK, fine_h // ROI_BLOCK
 
-    vf = join_filters([
+    grey = join_filters([
         "fps=%.6g" % sample_rate,
         "scale=%d:%d:flags=bilinear" % (fine_w, fine_h),
         "format=gray",
     ])
-    cmd = [FFMPEG, "-nostdin", "-hide_banner", "-v", "error"]
+    cmd = [FFMPEG, "-nostdin", "-hide_banner", "-v", "error", "-y"]
     cmd += FAST_DECODE_FLAGS
     if hwaccel:
         cmd += ["-hwaccel", hwaccel]
-    cmd += ["-i", info.path, "-an", "-sn", "-dn", "-vf", vf]
-    cmd += ["-f", "rawvideo", "-pix_fmt", "gray", "-"]
+    cmd += ["-i", info.path]
+
+    if proxy is None:
+        cmd += ["-an", "-sn", "-dn", "-vf", grey]
+        cmd += ["-f", "rawvideo", "-pix_fmt", "gray", "-"]
+    else:
+        preview = []
+        if proxy.wants_tonemap(info):
+            preview.append(tonemap_chain(info)[0])
+        preview += [
+            "fps=%.6g" % proxy.fps,
+            "scale=-2:%d:flags=bilinear" % proxy.height,
+            "setsar=1",
+        ]
+        cmd += [
+            "-filter_complex",
+            "[0:v]split=2[analyse][preview];[analyse]%s[grey];[preview]%s[proxy]"
+            % (grey, join_filters(preview)),
+            "-map", "[grey]", "-f", "rawvideo", "-pix_fmt", "gray", "-",
+            "-map", "[proxy]", "-map", "0:a?",
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", str(proxy.crf),
+            "-pix_fmt", "yuv420p", "-g", "%d" % max(2, int(proxy.fps)),
+            "-c:a", "aac", "-b:a", "96k", "-ac", "2",
+            "-movflags", "+faststart", proxy.path,
+        ]
 
     expected = max(1, int(info.duration * sample_rate))
     per_frame_bytes = coarse_w * coarse_h

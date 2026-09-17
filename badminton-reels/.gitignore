@@ -4,10 +4,12 @@ __pycache__/
 build/
 dist/
 .venv/
-out/
-*.mp4
-*.mov
-*.MOV
-!tests/fixtures/*.mp4
-project.json
-review.html
+
+# Generated output, not source. Anchored so nothing inside the package is
+# ever silently left out of a commit.
+/out/
+/clips/
+/*.mp4
+/*.mov
+/*.json
+/workspace/
