@@ -1,0 +1,125 @@
+:root {
+  --red: #e8463a;
+  --bg: #fff8f0;
+  --ink: #2b2118;
+  --muted: #7a6a5c;
+  --card: #ffffff;
+  --common: #9aa5b1;
+  --uncommon: #3fa34d;
+  --rare: #2f7de1;
+  --legendary: #f2a900;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #1b1612; --ink: #f4ece4; --muted: #b3a597; --card: #2a231d; }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  padding-bottom: 80px;
+}
+header {
+  background: var(--red);
+  color: #fff;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+header h1 { margin: 0; font-size: 1.3rem; }
+#player-badge { font-size: 0.85rem; text-align: right; min-width: 120px; }
+.xp-bar { height: 6px; background: rgba(255,255,255,0.35); border-radius: 3px; margin-top: 4px; }
+.xp-bar div { height: 100%; background: #fff; border-radius: 3px; }
+
+main { max-width: 480px; margin: 0 auto; padding: 16px; }
+input, button {
+  font: inherit;
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--muted);
+  margin-top: 10px;
+  background: var(--card);
+  color: var(--ink);
+}
+button { background: var(--red); color: #fff; border: none; font-weight: 600; cursor: pointer; }
+
+.camera-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 220px;
+  height: 220px;
+  margin: 24px auto 8px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 45%, #fff 0 22%, var(--red) 23% 48%, var(--ink) 49% 52%, #fff 53%);
+  border: 6px solid var(--ink);
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+  box-shadow: 0 6px 0 rgba(0,0,0,0.2);
+}
+.camera-button span { font-size: 2.5rem; }
+.hint { color: var(--muted); text-align: center; font-size: 0.9rem; }
+
+.scanning { position: relative; text-align: center; }
+.scanning img { width: 100%; border-radius: 12px; filter: saturate(0.6); }
+.scanline {
+  position: absolute; left: 0; right: 0; top: 0; height: 4px;
+  background: #39ff88; box-shadow: 0 0 12px #39ff88;
+  animation: scan 1.4s ease-in-out infinite alternate;
+}
+@keyframes scan { to { top: calc(100% - 40px); } }
+
+.card {
+  position: relative;
+  background: var(--card);
+  border-radius: 16px;
+  padding: 16px;
+  border: 6px solid var(--common);
+  overflow: hidden;
+}
+.card.uncommon { border-color: var(--uncommon); }
+.card.rare { border-color: var(--rare); }
+.card.legendary { border-color: var(--legendary); box-shadow: 0 0 24px var(--legendary); }
+.card.miss { border-color: var(--muted); text-align: center; }
+.card img { width: 100%; border-radius: 10px; aspect-ratio: 4/3; object-fit: cover; }
+.card-top { display: flex; justify-content: space-between; align-items: baseline; }
+.card h3 { margin: 0 0 8px; }
+.stars { color: var(--legendary); }
+.rarity-label { text-transform: uppercase; font-size: 0.8rem; color: var(--muted); letter-spacing: 0.05em; }
+.card dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 0.9rem; }
+.card dt { color: var(--muted); }
+.card dd { margin: 0; }
+.xp { font-weight: 700; color: var(--uncommon); font-size: 1.1rem; }
+.ribbon {
+  position: absolute; top: 14px; right: -34px; transform: rotate(45deg);
+  background: var(--red); color: #fff; padding: 4px 40px; font-weight: 700; font-size: 0.8rem;
+}
+
+.dex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+.dex-entry {
+  background: var(--card); border-radius: 12px; padding: 8px;
+  border: 3px solid var(--common); display: flex; flex-direction: column; gap: 4px;
+}
+.dex-entry.uncommon { border-color: var(--uncommon); }
+.dex-entry.rare { border-color: var(--rare); }
+.dex-entry.legendary { border-color: var(--legendary); }
+.dex-entry img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; }
+
+nav#tabs {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  display: flex; background: var(--card); border-top: 1px solid var(--muted);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+nav#tabs button {
+  margin: 0; border-radius: 0; background: none; color: var(--muted);
+  display: flex; flex-direction: column; align-items: center; font-size: 1.3rem; padding: 8px;
+}
+nav#tabs button span { font-size: 0.75rem; }
+nav#tabs button.active { color: var(--red); }

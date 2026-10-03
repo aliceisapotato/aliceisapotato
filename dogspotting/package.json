@@ -1,0 +1,19 @@
+{
+  "name": "dogspotting",
+  "version": "0.1.0",
+  "description": "Gotta spot 'em all - a Pokémon-style game for photographing and collecting dog breeds",
+  "type": "module",
+  "main": "src/server.js",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
+    "express": "^5.2.1",
+    "multer": "^2.4.0",
+    "zod": "^4.6.5"
+  }
+}
