@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#e8463a" />
+  <link rel="manifest" href="manifest.json" />
+  <title>Dogspotting</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>🐾 Dogspotting</h1>
+    <div id="player-badge" hidden></div>
+  </header>
+
+  <main>
+    <!-- First launch: pick a trainer name -->
+    <section id="onboarding" class="screen" hidden>
+      <h2>Welcome, Spotter!</h2>
+      <p>Photograph dogs you meet, identify their breed, and fill your Dogdex.</p>
+      <form id="name-form">
+        <input id="name-input" placeholder="Your spotter name" maxlength="30" required />
+        <button type="submit">Start spotting</button>
+      </form>
+    </section>
+
+    <!-- Main camera screen -->
+    <section id="spot" class="screen" hidden>
+      <label class="camera-button">
+        <input id="photo-input" type="file" accept="image/*" capture="environment" hidden />
+        <span>📸</span>
+        Spot a dog!
+      </label>
+      <input id="nickname-input" placeholder="Dog's name, if you know it (optional)" maxlength="40" />
+      <p class="hint">Ask the owner first, and keep a respectful distance. 🐕</p>
+    </section>
+
+    <!-- Scanning / result -->
+    <section id="result" class="screen" hidden>
+      <div id="scanning" class="scanning" hidden>
+        <img id="preview" alt="" />
+        <div class="scanline"></div>
+        <p>Scanning attributes…</p>
+      </div>
+      <div id="card" hidden></div>
+      <button id="again-button" hidden>Spot another</button>
+    </section>
+
+    <section id="dogdex" class="screen" hidden>
+      <h2>Dogdex <small id="dex-count"></small></h2>
+      <div id="dex-grid" class="dex-grid"></div>
+    </section>
+
+    <section id="leaderboard" class="screen" hidden>
+      <h2>Top Spotters</h2>
+      <ol id="leaderboard-list"></ol>
+    </section>
+  </main>
+
+  <nav id="tabs" hidden>
+    <button data-screen="spot">📸<span>Spot</span></button>
+    <button data-screen="dogdex">📖<span>Dogdex</span></button>
+    <button data-screen="leaderboard">🏆<span>Ranks</span></button>
+  </nav>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
