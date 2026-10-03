@@ -37,6 +37,20 @@ This folder has a working starter app plus a step-by-step guide for growing it i
 
 ## 2. Install and play
 
+### Quickest: play online, nothing to install
+
+Dogspotting is hosted as a web page on claude.ai: **https://claude.ai/artifact/TriTYor1LqTjzWHibkncKF**
+
+Open it in a web browser on your phone or computer and sign in to claude.ai. The page source is `web/dogspotting.html`.
+
+- **No server and no API key.** Each scan runs on the player's own Claude account, so the first scan asks you to **Allow** it.
+- **Your Dogdex and the leaderboard are saved online** and follow you between phone and computer, because they're tied to your claude.ai account.
+- **On a phone:** tap the red ball to open the camera. To get an app icon, use Add to Home Screen as described in [Step 3](#step-3-install-it-on-your-phones-home-screen).
+- **Playing with friends:** the page is private until you share it from its **Share** menu. Friends need a claude.ai account. On a personal plan, invite them by email as **Editor** so their catches save. Anyone with less access can still scan in guest mode, but their catches aren't saved.
+
+To run your own copy on your own server instead, follow the steps below.
+
+
 The game has two parts: a **server** that runs on your computer, and the **app** you open in a web browser on your computer or phone. Set up the server once, then play from any device that can reach it.
 
 ### Step 1: Set up the server on your computer (one time)

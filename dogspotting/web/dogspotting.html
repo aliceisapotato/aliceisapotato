@@ -1,0 +1,680 @@
+<title>Dogspotting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,800&display=swap">
+<style>
+/* Layout: one-column handheld "scanner" app — status bar on top, screen in the middle, tab bar fixed at the bottom. */
+:root {
+  --bg: #eef3ee;          /* park-morning neutral, green bias */
+  --surface: #ffffff;
+  --sunken: #e1e9e2;
+  --ink: #15211a;
+  --muted: #5b6b60;
+  --line: #c9d5cb;
+  --accent: #df3b2a;      /* spotter red */
+  --accent-ink: #ffffff;
+  --scan: #12a46b;        /* scanner beam */
+  --common: #7d8a82;
+  --uncommon: #2f9a49;
+  --rare: #2c6fd6;
+  --legendary: #d99100;
+  --danger: #b3261e;
+  --font-display: "Chakra Petch", "Trebuchet MS", system-ui, sans-serif;
+  --font-body: "Nunito Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1612; --surface: #18221c; --sunken: #212d26; --ink: #e8f0ea; --muted: #9db0a3;
+    --line: #2e3d34; --accent: #f05a47; --scan: #33d08f;
+    --common: #9aa79f; --uncommon: #4fc06a; --rare: #5c94ee; --legendary: #f2b233; --danger: #ff8a80;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1612; --surface: #18221c; --sunken: #212d26; --ink: #e8f0ea; --muted: #9db0a3;
+  --line: #2e3d34; --accent: #f05a47; --scan: #33d08f;
+  --common: #9aa79f; --uncommon: #4fc06a; --rare: #5c94ee; --legendary: #f2b233; --danger: #ff8a80;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 400 15px/1.5 var(--font-body);
+  padding-inline: 16px; padding-block: 0 96px;
+}
+h1, h2, h3, .display { font-family: var(--font-display); letter-spacing: 0.01em; text-wrap: balance; margin: 0; }
+button, input { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible, label:focus-within { outline: 3px solid var(--rare); outline-offset: 2px; }
+.wrap { max-width: 460px; margin-inline: auto; display: flex; flex-direction: column; gap: 16px; }
+
+/* status bar */
+.status {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding-block: 14px 4px;
+}
+.brand { display: flex; align-items: center; gap: 8px; font-size: 1.35rem; font-weight: 700; }
+.brand svg { flex: none; }
+.trainer { text-align: right; min-width: 0; }
+.trainer .name { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.trainer .lv { font-family: var(--font-display); font-size: 0.8rem; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+.xpbar { height: 6px; width: 120px; margin-left: auto; margin-top: 4px; border-radius: 3px; background: var(--sunken); overflow: hidden; }
+.xpbar i { display: block; height: 100%; background: var(--accent); transition: width .5s ease; }
+
+.notice {
+  background: var(--sunken); border-radius: 10px; padding: 10px 12px; font-size: 0.9rem; color: var(--muted);
+}
+.notice strong { color: var(--ink); }
+
+/* spot screen */
+.scanner {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 22px;
+  padding: 22px 18px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center;
+}
+.lens {
+  position: relative; width: 190px; height: 190px; border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, var(--surface) 0 24%, var(--ink) 24% 27%, transparent 27%),
+              linear-gradient(var(--accent) 0 47%, var(--ink) 47% 53%, var(--surface) 53%);
+  border: 5px solid var(--ink); cursor: pointer; display: grid; place-items: center;
+  box-shadow: 0 6px 0 var(--line);
+  transition: transform .12s ease;
+}
+.lens:active { transform: translateY(3px); box-shadow: 0 3px 0 var(--line); }
+.lens input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.lens span { position: relative; font-size: 1.6rem; pointer-events: none; }
+.scanner h2 { font-size: 1.45rem; }
+.scanner p { margin: 0; color: var(--muted); max-width: 32ch; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; width: 100%; }
+.btn {
+  border: 0; border-radius: 999px; padding: 11px 18px; font-weight: 800; cursor: pointer;
+  background: var(--accent); color: var(--accent-ink);
+}
+.btn.ghost { background: var(--sunken); color: var(--ink); }
+.btn[disabled] { opacity: .5; cursor: not-allowed; }
+label.btn { display: inline-flex; align-items: center; gap: 6px; position: relative; }
+label.btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.field { width: 100%; padding: 11px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); }
+
+/* scanning */
+.scanning { position: relative; border-radius: var(--radius); overflow: hidden; background: var(--ink); }
+.scanning img { display: block; width: 100%; max-height: 60vh; object-fit: contain; opacity: .75; }
+.beam { position: absolute; inset-inline: 0; top: 0; height: 3px; background: var(--scan); box-shadow: 0 0 18px 4px var(--scan); animation: sweep 1.6s ease-in-out infinite alternate; }
+@keyframes sweep { to { top: calc(100% - 3px); } }
+.scanning .label {
+  position: absolute; left: 12px; bottom: 12px; padding: 4px 10px; border-radius: 6px;
+  background: rgba(0,0,0,.6); color: #e9fff4; font-family: var(--font-display); font-size: .85rem; letter-spacing: .08em;
+}
+@media (prefers-reduced-motion: reduce) { .beam { animation: none; top: 50%; } }
+
+/* catch card */
+.card {
+  --tier: var(--common);
+  position: relative; background: var(--surface); border-radius: 18px; overflow: hidden;
+  border: 5px solid var(--tier); display: flex; flex-direction: column;
+}
+.card.uncommon { --tier: var(--uncommon); }
+.card.rare { --tier: var(--rare); }
+.card.legendary { --tier: var(--legendary); box-shadow: 0 0 0 3px var(--surface), 0 0 26px var(--legendary); }
+.card .head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 12px 14px 8px; }
+.card .head h3 { font-size: 1.3rem; min-width: 0; overflow-wrap: anywhere; }
+.stars { color: var(--tier); font-size: 1.05rem; white-space: nowrap; letter-spacing: 2px; }
+.card .photo { aspect-ratio: 4 / 3; width: 100%; max-width: 100%; object-fit: cover; background: var(--sunken); display: block; }
+.card .body { padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.tierline { display: flex; justify-content: space-between; gap: 8px; font-family: var(--font-display); font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.tierline b { color: var(--tier); }
+.stats { display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; margin: 0; font-size: .9rem; }
+.stats dt { color: var(--muted); font-family: var(--font-display); font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; padding-top: 2px; }
+.stats dd { margin: 0; min-width: 0; }
+.card p { margin: 0; font-size: .92rem; }
+.card .why { color: var(--muted); }
+.xpgain { font-family: var(--font-display); font-weight: 700; font-size: 1.2rem; color: var(--uncommon); }
+.ribbon {
+  position: absolute; top: 12px; right: -36px; transform: rotate(40deg);
+  background: var(--accent); color: var(--accent-ink); padding: 3px 42px;
+  font-family: var(--font-display); font-weight: 700; font-size: .8rem; letter-spacing: .1em;
+}
+.miss { background: var(--surface); border: 2px dashed var(--line); border-radius: 18px; padding: 22px 18px; text-align: center; display: flex; flex-direction: column; gap: 8px; }
+.miss h3 { font-size: 1.25rem; }
+.miss p { margin: 0; color: var(--muted); }
+
+/* dogdex */
+.section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.section-head h2 { font-size: 1.4rem; }
+.section-head span { font-family: var(--font-display); color: var(--muted); font-variant-numeric: tabular-nums; }
+.dex { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
+.dex-entry {
+  --tier: var(--common);
+  background: var(--surface); border: 3px solid var(--tier); border-radius: 12px; overflow: hidden;
+  display: flex; flex-direction: column; text-align: left; padding: 0; cursor: pointer; color: var(--ink);
+}
+.dex-entry.uncommon { --tier: var(--uncommon); }
+.dex-entry.rare { --tier: var(--rare); }
+.dex-entry.legendary { --tier: var(--legendary); }
+.dex-entry img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: var(--sunken); }
+.dex-entry .meta { padding: 8px 9px 10px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dex-entry strong { font-size: .9rem; line-height: 1.25; overflow-wrap: anywhere; }
+.dex-entry small { color: var(--muted); font-variant-numeric: tabular-nums; }
+.dex-entry small b { color: var(--tier); font-weight: 600; letter-spacing: 1px; }
+.empty { text-align: center; color: var(--muted); padding: 28px 12px; border: 2px dashed var(--line); border-radius: 16px; }
+
+/* ranks */
+.ranks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ranks li {
+  display: grid; grid-template-columns: 2.2em 1fr auto; align-items: center; gap: 10px;
+  background: var(--surface); border-radius: 12px; padding: 10px 12px; border: 1px solid var(--line);
+}
+.ranks li.me { border-color: var(--accent); }
+.ranks .pos { font-family: var(--font-display); font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ranks .who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.ranks .who small { display: block; font-weight: 400; color: var(--muted); }
+.ranks .pts { font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* how to play */
+.howto { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.howto h3 { font-size: 1.1rem; }
+.howto ol { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; }
+.scoretable { width: 100%; border-collapse: collapse; font-size: .9rem; font-variant-numeric: tabular-nums; }
+.scoretable th, .scoretable td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+.scoretable td:nth-child(n+3) { white-space: nowrap; }
+.scoretable th { font-family: var(--font-display); font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 500; }
+
+/* tab bar */
+.tabs {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+  display: flex; justify-content: center; gap: 4px;
+  background: var(--surface); border-top: 1px solid var(--line);
+  padding: 6px 12px calc(6px + env(safe-area-inset-bottom, 0px));
+}
+.tabs button {
+  flex: 1; max-width: 150px; border: 0; background: none; padding: 6px 4px; border-radius: 10px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 2px; color: var(--muted);
+  font-family: var(--font-display); font-size: .78rem; letter-spacing: .06em; text-transform: uppercase;
+}
+.tabs button svg { width: 22px; height: 22px; }
+.tabs button[aria-selected="true"] { color: var(--accent); background: var(--sunken); }
+
+/* dialog-ish overlay for name entry */
+.onboard { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 22px 18px; display: flex; flex-direction: column; gap: 12px; }
+.onboard h2 { font-size: 1.6rem; }
+.onboard p { margin: 0; color: var(--muted); }
+.onboard form { display: flex; flex-direction: column; gap: 10px; }
+.toast {
+  position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-weight: 700;
+  max-width: calc(100% - 32px); text-align: center; z-index: 6;
+}
+</style>
+
+<div class="wrap">
+  <header class="status">
+    <div class="brand display">
+      <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+        <circle cx="15" cy="15" r="13" fill="var(--surface)" stroke="var(--ink)" stroke-width="2.5"/>
+        <path d="M2 15a13 13 0 0 1 26 0z" fill="var(--accent)" stroke="var(--ink)" stroke-width="2.5"/>
+        <circle cx="15" cy="15" r="4" fill="var(--surface)" stroke="var(--ink)" stroke-width="2.5"/>
+      </svg>
+      Dogspotting
+    </div>
+    <div class="trainer" id="trainer" hidden>
+      <span class="name" id="trainer-name"></span>
+      <span class="lv" id="trainer-lv"></span>
+      <div class="xpbar"><i id="trainer-xp" style="width:0%"></i></div>
+    </div>
+  </header>
+
+  <div class="notice" id="notice">Loading your spotter profile…</div>
+
+  <!-- First visit: choose a spotter name -->
+  <section class="onboard" id="screen-onboard" hidden>
+    <h2>Welcome, spotter</h2>
+    <p>Photograph dogs you meet, let the scanner read their breed, and fill your Dogdex. Rare breeds are worth more.</p>
+    <form id="name-form">
+      <label for="name-input" class="display" style="font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">Spotter name</label>
+      <input class="field" id="name-input" maxlength="24" placeholder="e.g. Potato Spotter" required autocomplete="nickname">
+      <button class="btn" type="submit" id="name-submit">Start spotting</button>
+    </form>
+  </section>
+
+  <!-- Spot -->
+  <section id="screen-spot" hidden>
+    <div class="wrap">
+      <div class="scanner" id="scanner">
+        <label class="lens" for="photo-camera" aria-label="Take a photo of a dog">
+          <input type="file" id="photo-camera" accept="image/*" capture="environment">
+          <span aria-hidden="true">📸</span>
+        </label>
+        <h2>Spot a dog!</h2>
+        <p>Tap the ball to open your camera, or pick a photo you just took.</p>
+        <div class="row">
+          <label class="btn ghost" for="photo-library">
+            <input type="file" id="photo-library" accept="image/jpeg,image/png,image/webp,image/gif">
+            Choose a photo
+          </label>
+        </div>
+        <input class="field" id="nickname-input" maxlength="40" placeholder="Dog's name, if the owner tells you (optional)">
+      </div>
+      <div id="scan-area" hidden></div>
+      <div class="row" id="again-row" hidden><button class="btn" id="again-btn" type="button">Spot another dog</button></div>
+    </div>
+  </section>
+
+  <!-- Dogdex -->
+  <section id="screen-dex" hidden>
+    <div class="wrap">
+      <div class="section-head"><h2>Dogdex</h2><span id="dex-count">0 breeds</span></div>
+      <div id="dex-detail" hidden></div>
+      <div class="dex" id="dex-grid"></div>
+    </div>
+  </section>
+
+  <!-- Ranks -->
+  <section id="screen-ranks" hidden>
+    <div class="wrap">
+      <div class="section-head"><h2>Top spotters</h2><span id="ranks-count"></span></div>
+      <ol class="ranks" id="ranks-list"></ol>
+    </div>
+  </section>
+
+  <!-- How to play -->
+  <section id="screen-help" hidden>
+    <div class="howto">
+      <h3>How to play</h3>
+      <ol>
+        <li>Find a dog. Ask the owner before you take a photo.</li>
+        <li>Tap the red ball to open your camera. Get the whole dog in frame: head, legs and tail.</li>
+        <li>The scanner reads the dog's head, ears, coat, colours, size and tail, then names the breed.</li>
+        <li>Each new breed goes into your Dogdex. Climb the ranks by finding rarer breeds.</li>
+      </ol>
+      <h3>Scoring</h3>
+      <div style="overflow-x:auto">
+        <table class="scoretable">
+          <thead><tr><th>Rarity</th><th>Examples</th><th>New</th><th>Repeat</th></tr></thead>
+          <tbody>
+            <tr><td style="color:var(--common)">★ Common</td><td>Labrador, Doodles</td><td>20 XP</td><td>5 XP</td></tr>
+            <tr><td style="color:var(--uncommon)">★★ Uncommon</td><td>Corgi, Shiba Inu</td><td>50 XP</td><td>13 XP</td></tr>
+            <tr><td style="color:var(--rare)">★★★ Rare</td><td>Borzoi, Komondor</td><td>120 XP</td><td>30 XP</td></tr>
+            <tr><td style="color:var(--legendary)">★★★★ Legendary</td><td>Azawakh, Mudi</td><td>300 XP</td><td>75 XP</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin:0;color:var(--muted)">Level 2 needs 50 XP, level 3 needs 200, level 4 needs 450. Photos of screens, toys and statues don't count. Each scan uses a little of your own Claude usage.</p>
+    </div>
+  </section>
+</div>
+
+<nav class="tabs" id="tabs" role="tablist" hidden>
+  <button role="tab" data-screen="spot" aria-selected="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h6m6 0h6"/><circle cx="12" cy="12" r="3"/></svg>Spot</button>
+  <button role="tab" data-screen="dex" aria-selected="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/></svg>Dogdex</button>
+  <button role="tab" data-screen="ranks" aria-selected="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 21V11M16 21V7M12 21V3M4 21h16"/></svg>Ranks</button>
+  <button role="tab" data-screen="help" aria-selected="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17.5v.01"/></svg>Help</button>
+</nav>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const STARS = { common: "★", uncommon: "★★", rare: "★★★", legendary: "★★★★" };
+  const RARITIES = Object.keys(STARS);
+  const BASE_POINTS = { common: 10, uncommon: 25, rare: 60, legendary: 150 };
+  const MIN_CONFIDENCE = 0.4;
+
+  // ---------- game rules (same as the Node version's src/game.js) ----------
+  const levelForXp = (xp) => Math.floor(Math.sqrt(xp / 50)) + 1;
+  const xpForLevel = (lv) => 50 * (lv - 1) ** 2;
+  function scoreCatch(scan, alreadyOwned) {
+    if (!scan.is_dog) return { caught: false, reason: "No dog detected. Get closer so the dog fills more of the photo." };
+    if (!scan.is_live_photo) return { caught: false, reason: "That looks like a photo of a screen, picture or toy. Only real dogs count." };
+    if (scan.confidence < MIN_CONFIDENCE) return { caught: false, reason: "The scanner couldn't get a clear read. Try a sharper photo of the whole dog in good light." };
+    const base = BASE_POINTS[scan.rarity] ?? BASE_POINTS.common;
+    return alreadyOwned ? { caught: true, newBreed: false, xp: Math.ceil(base / 2) } : { caught: true, newBreed: true, xp: base * 2 };
+  }
+
+  const SCAN_PROMPT = `You are the breed scanner in Dogspotting, a game where players photograph dogs they meet on the street and collect breeds like a Pokédex. The attached image is the player's photo.
+
+Look carefully at the dog's visible attributes (head shape, muzzle length, ear set, coat type and colour, body proportions, tail carriage, size relative to surroundings) and identify the most likely breed.
+
+Be honest about uncertainty: if the dog is partly hidden, blurry, a puppy, or clearly a mix, lower your confidence and use "Mixed Breed" with possible_mix rather than guessing a rare breed. Rarity reflects how often the breed is actually seen on a typical city street: common (labs, goldens, doodles), uncommon, rare, legendary (e.g. Azawakh, Lagotto, Mudi). Never inflate it.
+
+If there is no real dog, set is_dog to false and breed to "". If the image looks like a photo of a screen, printout, poster, toy or statue rather than a dog in front of the camera, set is_live_photo to false. If there are several dogs, describe the most prominent one.
+
+Reply with only one JSON object with exactly these fields:
+{"is_dog": boolean, "is_live_photo": boolean, "breed": string, "possible_mix": [string], "confidence": number from 0 to 1, "rarity": "common" | "uncommon" | "rare" | "legendary", "attributes": {"size": string, "coat": string, "colors": [string], "ears": string, "tail": string, "distinguishing_features": [string]}, "reasoning": string (one or two sentences on which visible attributes led to this breed), "fun_fact": string (one short friendly fact about the breed)}`;
+
+  // ---------- state ----------
+  const state = {
+    sample: null, imagesOk: false, db: null, uid: null, canSave: false,
+    me: null,            // {name, xp, breeds, catches}
+    catches: [],         // own catches, newest first
+    leaderboard: [],
+    busy: false,
+  };
+
+  // ---------- small helpers ----------
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const breedKey = (b) => String(b || "").trim().toLowerCase();
+  const titleCase = (s) => String(s || "").trim().replace(/\s+/g, " ").replace(/\b([a-z])/g, (m) => m.toUpperCase());
+  let toastTimer;
+  function toast(msg) {
+    let t = document.querySelector(".toast");
+    if (!t) { t = document.createElement("div"); t.className = "toast"; t.setAttribute("role", "status"); document.body.append(t); }
+    t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 2800);
+  }
+  function notice(html) { $("notice").innerHTML = html; $("notice").hidden = !html; }
+  function safeLocal(op, key, val) { try { return op === "get" ? localStorage.getItem(key) : localStorage.setItem(key, val); } catch { return null; } }
+
+  // ---------- navigation ----------
+  let current = "spot";
+  function show(screen) {
+    current = screen;
+    for (const s of ["onboard", "spot", "dex", "ranks", "help"]) $("screen-" + s).hidden = s !== screen;
+    document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.screen === screen)));
+    if (screen === "dex") renderDex();
+    if (screen === "ranks") renderRanks();
+  }
+  document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => show(b.dataset.screen)));
+
+  function renderTrainer() {
+    if (!state.me) { $("trainer").hidden = true; return; }
+    const lv = levelForXp(state.me.xp), lo = xpForLevel(lv), hi = xpForLevel(lv + 1);
+    $("trainer").hidden = false;
+    $("trainer-name").textContent = state.me.name;
+    $("trainer-lv").textContent = `Lv ${lv} · ${state.me.xp} XP`;
+    $("trainer-xp").style.width = Math.round(((state.me.xp - lo) / (hi - lo)) * 100) + "%";
+  }
+
+  // ---------- images ----------
+  async function loadBitmap(file) {
+    try { return await createImageBitmap(file, { imageOrientation: "from-image" }); }
+    catch { return await createImageBitmap(file); }
+  }
+  function toJpeg(bitmap, maxSide, quality) {
+    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+    const c = document.createElement("canvas");
+    c.width = Math.round(bitmap.width * scale); c.height = Math.round(bitmap.height * scale);
+    c.getContext("2d").drawImage(bitmap, 0, 0, c.width, c.height);
+    return c;
+  }
+  const canvasBlob = (c, q) => new Promise((res) => c.toBlob(res, "image/jpeg", q));
+
+  // ---------- scanning ----------
+  function normalizeScan(raw) {
+    const r = raw && typeof raw === "object" ? raw : {};
+    const a = r.attributes && typeof r.attributes === "object" ? r.attributes : {};
+    const list = (v) => (Array.isArray(v) ? v.map(String).filter(Boolean).slice(0, 6) : []);
+    const conf = Number(r.confidence);
+    return {
+      is_dog: r.is_dog === true,
+      is_live_photo: r.is_live_photo !== false,
+      breed: titleCase(r.breed).slice(0, 60),
+      possible_mix: list(r.possible_mix).map(titleCase),
+      confidence: Number.isFinite(conf) ? Math.min(1, Math.max(0, conf)) : 0,
+      rarity: RARITIES.includes(r.rarity) ? r.rarity : "common",
+      attributes: {
+        size: String(a.size || "").slice(0, 60), coat: String(a.coat || "").slice(0, 80),
+        colors: list(a.colors), ears: String(a.ears || "").slice(0, 80), tail: String(a.tail || "").slice(0, 80),
+        distinguishing_features: list(a.distinguishing_features),
+      },
+      reasoning: String(r.reasoning || "").slice(0, 400),
+      fun_fact: String(r.fun_fact || "").slice(0, 300),
+    };
+  }
+
+  const SCAN_ERRORS = {
+    not_granted: "Scanning needs permission to use your Claude account. Reload the page and choose Allow to scan.",
+    sampling_disabled: "Claude isn't available for your account, so the scanner can't run here.",
+    rate_limited: "The scanner is busy or you've hit your usage limit. Wait a minute, then try again.",
+    session_expired: "You've been signed out of Claude. Sign in again, then try the photo again.",
+    image_rejected: "That file couldn't be read. Use a JPEG or PNG photo.",
+    images_unavailable: "Photo scanning isn't available in this Claude app yet. Try claude.ai in a web browser.",
+    refused: "The scanner declined this photo. Try a different picture of the dog.",
+    invalid_json: "The scanner's answer came back garbled. Tap Spot another dog and try again.",
+  };
+
+  async function handlePhoto(file) {
+    if (!file || state.busy) return;
+    if (!state.sample || !state.imagesOk) {
+      toast("Open this page on claude.ai to scan dogs.");
+      return;
+    }
+    state.busy = true;
+    $("scanner").hidden = true; $("again-row").hidden = true;
+    const area = $("scan-area"); area.hidden = false;
+    const previewUrl = URL.createObjectURL(file);
+    area.innerHTML = `<div class="scanning"><img alt="Your photo" src="${previewUrl}"><div class="beam"></div><span class="label">SCANNING ATTRIBUTES…</span></div>`;
+
+    try {
+      let bitmap;
+      try { bitmap = await loadBitmap(file); }
+      catch { throw { code: "image_rejected" }; }
+      const scanBlob = await canvasBlob(toJpeg(bitmap, 1568, 0.85), 0.85);
+      const thumb = toJpeg(bitmap, 420, 0.72).toDataURL("image/jpeg", 0.72);
+      bitmap.close?.();
+
+      const raw = await state.sample.json(SCAN_PROMPT, { images: scanBlob, modelTier: "default", cache: false });
+      const scan = normalizeScan(raw);
+      const owned = scan.is_dog && state.catches.some((c) => breedKey(c.breed) === breedKey(scan.breed));
+      const outcome = scoreCatch(scan, owned);
+      let saved = false;
+      if (outcome.caught) saved = await saveCatch(scan, outcome, thumb, $("nickname-input").value.trim().slice(0, 40));
+      renderResult(scan, outcome, thumb, saved);
+      $("nickname-input").value = "";
+    } catch (e) {
+      const code = e && e.code;
+      const msg = SCAN_ERRORS[code] || "The scanner lost the signal. Check your connection and try again.";
+      area.innerHTML = `<div class="miss"><h3>Scan failed</h3><p>${esc(msg)}</p></div>`;
+    } finally {
+      URL.revokeObjectURL(previewUrl);
+      state.busy = false;
+      $("again-row").hidden = false;
+      $("again-btn").focus();
+    }
+  }
+
+  async function saveCatch(scan, outcome, thumb, nickname) {
+    const levelBefore = levelForXp(state.me.xp);
+    const entry = {
+      breed: scan.breed, rarity: scan.rarity, confidence: scan.confidence, nickname,
+      xp: outcome.xp, thumb, scan: { ...scan }, createdAt: new Date().toISOString(),
+    };
+    const breeds = new Set(state.catches.map((c) => breedKey(c.breed)));
+    breeds.add(breedKey(scan.breed));
+    const next = { name: state.me.name, xp: state.me.xp + outcome.xp, breeds: breeds.size, catches: (state.me.catches || 0) + 1, updatedAt: entry.createdAt };
+
+    if (state.canSave) {
+      try {
+        await state.db.collection(`spotters/${state.uid}/catches`).add(entry);
+        await state.db.doc(`spotters/${state.uid}`).set(next);
+        state.me = next;
+      } catch (e) {
+        if (e && e.code === "quota_exceeded") toast("The Dogdex storage is full, so this catch wasn't saved.");
+        else if (e && e.code === "invalid_argument") { state.canSave = false; showGuestNotice(); }
+        else toast("Couldn't save this catch. Check your connection.");
+        return false;
+      }
+    } else {
+      // Guest: keep it for this visit only.
+      state.catches.unshift({ id: "local-" + Date.now(), ...entry });
+      state.me = next;
+    }
+    renderTrainer();
+    outcome.leveledUp = levelForXp(state.me.xp) > levelBefore;
+    return state.canSave;
+  }
+
+  function renderResult(scan, outcome, thumb, saved) {
+    const area = $("scan-area");
+    if (!outcome.caught) {
+      area.innerHTML = `<div class="miss"><h3>It got away…</h3><p>${esc(outcome.reason)}</p></div>`;
+      return;
+    }
+    area.innerHTML = cardHtml(scan, { thumb, newBreed: outcome.newBreed, xp: outcome.xp, leveledUp: outcome.leveledUp, saved });
+  }
+
+  function cardHtml(scan, { thumb, newBreed, xp, leveledUp, saved, nickname, when }) {
+    const a = scan.attributes || {};
+    const rows = [["Size", a.size], ["Coat", a.coat], ["Colours", (a.colors || []).join(", ")], ["Ears", a.ears], ["Tail", a.tail]]
+      .filter(([, v]) => v).map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("");
+    const mix = scan.possible_mix && scan.possible_mix.length ? `<p>Possible mix: ${esc(scan.possible_mix.join(", "))}</p>` : "";
+    const gain = xp != null
+      ? `<div class="xpgain">+${xp} XP${leveledUp ? ` · Level up! Lv ${levelForXp(state.me.xp)}` : ""}</div>${saved === false ? `<p class="why">Not saved: you're playing as a guest.</p>` : ""}`
+      : "";
+    return `<article class="card ${scan.rarity}">
+      ${newBreed ? `<div class="ribbon">NEW</div>` : ""}
+      <div class="head"><h3>${esc(scan.breed)}</h3><span class="stars" aria-label="${scan.rarity}">${STARS[scan.rarity]}</span></div>
+      <img class="photo" src="${thumb}" alt="${esc(scan.breed)}">
+      <div class="body">
+        <div class="tierline"><b>${scan.rarity}</b><span>${Math.round(scan.confidence * 100)}% match${nickname ? " · " + esc(nickname) : ""}${when ? " · " + esc(when) : ""}</span></div>
+        ${mix}
+        <dl class="stats">${rows}</dl>
+        ${scan.reasoning ? `<p class="why">${esc(scan.reasoning)}</p>` : ""}
+        ${scan.fun_fact ? `<p>${esc(scan.fun_fact)}</p>` : ""}
+        ${gain}
+      </div>
+    </article>`;
+  }
+
+  // ---------- dogdex ----------
+  function dexEntries() {
+    const byBreed = new Map();
+    for (const c of state.catches) {
+      const k = breedKey(c.breed);
+      const e = byBreed.get(k);
+      if (!e) byBreed.set(k, { best: c, count: 1, first: c.createdAt });
+      else {
+        e.count++;
+        if (c.confidence > e.best.confidence) e.best = c;
+        if (c.createdAt < e.first) e.first = c.createdAt;
+      }
+    }
+    return [...byBreed.values()].sort((x, y) => (y.first || "").localeCompare(x.first || ""));
+  }
+  function renderDex() {
+    const entries = dexEntries();
+    $("dex-count").textContent = `${entries.length} breed${entries.length === 1 ? "" : "s"} · ${state.catches.length} spots`;
+    $("dex-detail").hidden = true;
+    $("dex-grid").innerHTML = entries.length
+      ? entries.map((e, i) => `<button class="dex-entry ${e.best.rarity}" data-i="${i}" type="button">
+          <img src="${e.best.thumb}" alt="" loading="lazy">
+          <span class="meta"><strong>${esc(e.best.breed)}</strong><small><b>${STARS[e.best.rarity]}</b> · seen ×${e.count}</small></span>
+        </button>`).join("")
+      : `<div class="empty" style="grid-column:1/-1">Your Dogdex is empty. Each breed you spot shows up here with your best photo.</div>`;
+    $("dex-grid").querySelectorAll(".dex-entry").forEach((btn) => btn.addEventListener("click", () => {
+      const e = entries[Number(btn.dataset.i)];
+      const when = e.first ? new Date(e.first).toLocaleDateString() : "";
+      $("dex-detail").innerHTML = cardHtml(e.best.scan || e.best, { thumb: e.best.thumb, nickname: e.best.nickname, when: "first spotted " + when })
+        + `<div class="row" style="margin-top:10px"><button class="btn ghost" type="button" id="dex-close">Back to Dogdex</button></div>`;
+      $("dex-detail").hidden = false; $("dex-grid").hidden = true;
+      $("dex-close").addEventListener("click", () => { $("dex-detail").hidden = true; $("dex-grid").hidden = false; });
+      window.scrollTo({ top: 0 });
+    }));
+    $("dex-grid").hidden = false;
+  }
+
+  // ---------- ranks ----------
+  function renderRanks() {
+    const rows = state.leaderboard.length ? state.leaderboard
+      : state.me ? [{ id: state.uid || "me", name: state.me.name, xp: state.me.xp, breeds: dexEntries().length }] : [];
+    $("ranks-count").textContent = rows.length ? `${rows.length} spotter${rows.length === 1 ? "" : "s"}` : "";
+    $("ranks-list").innerHTML = rows.length
+      ? rows.map((r, i) => `<li class="${r.id === state.uid ? "me" : ""}">
+          <span class="pos">${i + 1}</span>
+          <span class="who">${esc(r.name || "Spotter")}<small>${r.breeds || 0} breed${r.breeds === 1 ? "" : "s"}</small></span>
+          <span class="pts">${r.xp || 0} XP</span></li>`).join("")
+      : `<li style="display:block;text-align:center;color:var(--muted)">No spotters yet. Catch a dog to claim first place.</li>`;
+  }
+
+  // ---------- onboarding ----------
+  $("name-form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const name = $("name-input").value.trim().slice(0, 24);
+    if (!name) return;
+    $("name-submit").disabled = true;
+    const me = { name, xp: 0, breeds: 0, catches: 0, updatedAt: new Date().toISOString() };
+    if (state.canSave) {
+      try { await state.db.doc(`spotters/${state.uid}`).set(me); }
+      catch (e) {
+        if (e && e.code === "invalid_argument") { state.canSave = false; showGuestNotice(); }
+        else { toast("Couldn't save your name. Check your connection and try again."); $("name-submit").disabled = false; return; }
+      }
+    }
+    safeLocal("set", "spotterName", name);
+    state.me = me;
+    $("name-submit").disabled = false;
+    enterGame();
+  });
+
+  function enterGame() {
+    renderTrainer();
+    $("tabs").hidden = false;
+    show(current === "onboard" ? "spot" : current);
+  }
+
+  function showGuestNotice() {
+    notice(`<strong>Guest mode.</strong> You can scan dogs, but catches aren't saved and you won't appear on the leaderboard. Ask the game's owner to share it with you as an <strong>Editor</strong> to save your Dogdex.`);
+  }
+
+  // ---------- photo inputs ----------
+  for (const id of ["photo-camera", "photo-library"]) {
+    $(id).addEventListener("change", (ev) => { const f = ev.target.files[0]; ev.target.value = ""; handlePhoto(f); });
+  }
+  $("again-btn").addEventListener("click", () => {
+    $("scan-area").hidden = true; $("scan-area").innerHTML = ""; $("again-row").hidden = true; $("scanner").hidden = false;
+  });
+
+  // ---------- boot ----------
+  async function boot() {
+    show("onboard");
+    $("screen-onboard").hidden = true; // wait until we know who you are
+    const claude = window.claude;
+    const [sample, db, user] = await Promise.all([
+      claude?.use?.("sample") ?? null, claude?.use?.("db") ?? null, claude?.use?.("user") ?? null,
+    ].map((p) => Promise.resolve(p).catch(() => null)));
+
+    notice("");
+    state.sample = sample;
+    if (sample) {
+      const caps = await sample.limits().catch(() => null);
+      state.imagesOk = !!caps?.images;
+    }
+    state.db = db;
+    state.uid = user ? await user.id() : null;
+    const canWrite = user ? await user.can("data.write") : null;
+    state.canSave = !!(db && state.uid && canWrite !== false);
+
+    if (!sample) notice(`<strong>Open this page on claude.ai</strong> and sign in to scan dogs. The scanner runs on your Claude account.`);
+    else if (!state.imagesOk) notice(`<strong>Photo scanning isn't available in this view.</strong> Open the page on claude.ai in a web browser.`);
+    else if (!state.canSave) showGuestNotice();
+
+    if (state.canSave) {
+      const meDoc = await state.db.doc(`spotters/${state.uid}`).get().catch(() => null);
+      if (meDoc && meDoc.exists) state.me = { ...meDoc.data() };
+      state.db.doc(`spotters/${state.uid}`).onSnapshot((snap) => {
+        if (snap.exists) { state.me = { ...snap.data() }; renderTrainer(); }
+      }, () => {});
+      state.db.collection(`spotters/${state.uid}/catches`).orderBy("createdAt", "desc").limit(1000).onSnapshot((snap) => {
+        state.catches = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        if (current === "dex" && $("dex-detail").hidden) renderDex();
+      }, () => {});
+    }
+    if (db) {
+      state.db.collection("spotters").orderBy("xp", "desc").limit(100).onSnapshot((snap) => {
+        state.leaderboard = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((r) => r.name);
+        if (current === "ranks") renderRanks();
+      }, () => {});
+    }
+
+    if (state.me) return enterGame();
+    const remembered = safeLocal("get", "spotterName");
+    if (remembered) $("name-input").value = remembered;
+    show("onboard");
+  }
+
+  boot();
+})();
+</script>
