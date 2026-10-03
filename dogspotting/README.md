@@ -35,30 +35,115 @@ This folder has a working starter app plus a step-by-step guide for growing it i
 
 ---
 
-## 2. Run it on your computer
+## 2. Install and play
 
-You need **Node.js 22.13 or newer** and an **Anthropic API key** (get one at https://console.anthropic.com).
+The game has two parts: a **server** that runs on your computer, and the **app** you open in a web browser on your computer or phone. Set up the server once, then play from any device that can reach it.
 
-```bash
-cd dogspotting
-npm install
-export ANTHROPIC_API_KEY=sk-ant-...      # Windows PowerShell: $env:ANTHROPIC_API_KEY="sk-ant-..."
-npm start
-```
+### Step 1: Set up the server on your computer (one time)
 
-Open http://localhost:3000, pick a name, and upload a dog photo.
+1. **Install Node.js 22.13 or newer.** Download the "LTS" version from https://nodejs.org and run the installer. To check it worked, open a terminal (Mac: *Terminal*, Windows: *PowerShell*) and run:
+   ```bash
+   node -v        # should print v22.13.0 or higher
+   ```
+2. **Get the code.** Either run `git clone https://github.com/aliceisapotato/aliceisapotato.git`, or on GitHub click **Code → Download ZIP** and unzip it.
+3. **Get an Anthropic API key** at https://console.anthropic.com (Settings → API Keys). The AI breed scanner uses it. Each scan costs a small amount, so add a spending limit in the console.
+4. **Save your key.** In the `dogspotting` folder, copy `.env.example` to a new file named `.env` and paste your key in:
+   ```
+   ANTHROPIC_API_KEY=sk-ant-your-key-here
+   PORT=3000
+   ```
+   `.env` is in `.gitignore`, so your key is never uploaded to GitHub.
+5. **Install and start:**
+   ```bash
+   cd dogspotting
+   npm install     # only needed the first time
+   npm start
+   ```
+   When you see `🐶 Dogspotting running at http://localhost:3000`, the server is ready. Leave this terminal open while you play. Press `Ctrl+C` to stop it.
 
-Run the game-rule tests with `npm test`.
+### Step 2a: Play on your computer
 
-### Try it on your phone
+Open **http://localhost:3000** in Chrome, Safari, Edge or Firefox.
 
-Phone browsers only allow camera and GPS on **HTTPS** pages (or localhost). The quickest way to get HTTPS is a tunnel:
+On a computer, the **Spot a dog!** button opens a file picker instead of a camera. Choose a dog photo you took, for example one copied from your phone. Screenshots and photos of a screen are rejected by design.
 
+### Step 2b: Play on your phone
+
+Pick whichever option fits:
+
+**Option A: Same Wi-Fi (quickest, at home)**
+1. Connect your phone to the same Wi-Fi as the computer running the server.
+2. Find your computer's local IP address:
+   - Mac: `ipconfig getifaddr en0`
+   - Windows: `ipconfig` and look for "IPv4 Address"
+   - Linux: `hostname -I`
+3. On your phone, open `http://<that-address>:3000`, e.g. `http://192.168.1.23:3000`.
+4. If it doesn't load, allow Node.js through your computer's firewall when asked, or check that both devices are on the same network.
+
+The camera works this way. Location tagging doesn't, because phones only share GPS with `https://` sites. Catches are saved without a map location.
+
+**Option B: Anywhere, with GPS (secure tunnel)**
+
+In a second terminal on the computer (keep `npm start` running in the first):
 ```bash
 npx cloudflared tunnel --url http://localhost:3000
 ```
+It prints a link like `https://random-words.trycloudflare.com`. Open it on your phone, even on mobile data, and you get camera plus GPS. The link changes each time you restart the tunnel, and only works while your computer and the server are on.
 
-Open the `https://….trycloudflare.com` URL it prints on your phone. Tap **Spot a dog!** and the camera opens.
+**Option C: Always on, for friends.** Put the server online (see [Step 5: Deploy to the cloud](#step-5-deploy-to-the-cloud)) to get a permanent `https://` link that works without your computer.
+
+### Step 3: Install it on your phone's home screen
+
+This makes Dogspotting open full-screen like a normal app, with its own icon:
+
+- **iPhone (Safari):** open the game link → tap the **Share** button (square with an arrow) → **Add to Home Screen** → **Add**.
+- **Android (Chrome):** open the game link → tap the **⋮** menu → **Add to Home screen** (or **Install app**) → **Install**.
+
+On a computer, Chrome and Edge show an **Install** icon at the right of the address bar that does the same.
+
+> Your progress is tied to the browser you play on, so your phone and your computer are separate players. Pick one device for your main Dogdex. Real accounts that sync across devices are [Step 1 of the roadmap](#step-1-accounts-do-this-before-sharing-with-friends).
+
+### How to play
+
+1. **Pick a spotter name** the first time you open the game.
+2. **Find a dog** on the street, in the park, or at a friend's house. Ask the owner if it's OK to take a photo.
+3. **Tap the big 📸 Spot a dog! button.** Your camera opens. Take a clear photo of the whole dog. You can type the dog's name first if the owner tells you.
+4. **Wait for the scan.** The AI studies the dog's head, ears, coat, colours, size and tail, then shows a card with:
+   - the **breed** (or likely mix) and how sure it is
+   - its **rarity**: ★ common · ★★ uncommon · ★★★ rare · ★★★★ legendary
+   - what features gave the breed away, plus a fun fact
+   - the **XP** you earned
+5. **Fill your Dogdex** (📖 tab). Each breed you catch gets an entry with your best photo and how many times you've spotted it.
+6. **Climb the ranks** (🏆 tab) and compare XP and breed counts with other players on the same server.
+
+**Scoring**
+
+| Rarity | Example breeds | New breed | Repeat breed |
+|---|---|---|---|
+| ★ Common | Labrador, Golden Retriever, Doodles | 20 XP | 5 XP |
+| ★★ Uncommon | Corgi, Shiba Inu | 50 XP | 13 XP |
+| ★★★ Rare | Borzoi, Komondor | 120 XP | 30 XP |
+| ★★★★ Legendary | Azawakh, Mudi, Lagotto | 300 XP | 75 XP |
+
+Hunting for **new** breeds is the fastest way to level up. Level 2 needs 50 XP, level 3 needs 200, level 4 needs 450, and so on.
+
+**"It got away…": why a catch can fail**
+
+| Message | What to do |
+|---|---|
+| No dog detected | Get closer, so the dog fills more of the photo. |
+| Looks like a photo of a screen or picture | Only real dogs in front of you count. |
+| The scanner couldn't get a clear read | Hold steady, use good light, and show the dog's whole body and face. |
+| The breed scanner is having trouble | Check the server terminal. Usually the API key is missing or wrong in `.env`, or the computer is offline. |
+
+**Tips for better scans:** side-on shots showing the full body and head work best. Avoid heavy shadows, and avoid dogs wearing coats or costumes that hide their fur.
+
+### Troubleshooting
+
+- **`npm start` says the port is in use:** change `PORT=3000` in `.env` to e.g. `3001`, and use that number in the links.
+- **The phone can't open the page:** use Option B (tunnel). It avoids Wi-Fi and firewall problems.
+- **The camera doesn't open on the phone:** check the browser is allowed to use the camera (iPhone: Settings → Safari → Camera; Android: Chrome → Site settings → Camera).
+- **Run the game-rule tests:** `npm test`.
 
 ---
 
