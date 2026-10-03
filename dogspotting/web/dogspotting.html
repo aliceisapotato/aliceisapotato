@@ -138,6 +138,7 @@ label.btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; wid
 .miss { background: var(--surface); border: 2px dashed var(--line); border-radius: 18px; padding: 22px 18px; text-align: center; display: flex; flex-direction: column; gap: 8px; }
 .miss h3 { font-size: 1.25rem; }
 .miss p { margin: 0; color: var(--muted); }
+.miss .code { font-family: var(--font-display); font-size: .78rem; letter-spacing: .04em; }
 
 /* dogdex */
 .section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
@@ -389,18 +390,31 @@ Reply with only one JSON object with exactly these fields:
   }
 
   // ---------- images ----------
-  async function loadBitmap(file) {
-    try { return await createImageBitmap(file, { imageOrientation: "from-image" }); }
-    catch { return await createImageBitmap(file); }
+  // Decode the photo. createImageBitmap covers JPEG/PNG/WebP; an <img> element
+  // also decodes formats some browsers only support there (e.g. HEIC in Safari).
+  async function loadImage(file) {
+    try { return await createImageBitmap(file, { imageOrientation: "from-image" }); } catch {}
+    try { return await createImageBitmap(file); } catch {}
+    const url = URL.createObjectURL(file);
+    try {
+      const img = new Image();
+      img.decoding = "async";
+      img.src = url;
+      await img.decode();
+      return img;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
   }
-  function toJpeg(bitmap, maxSide, quality) {
-    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+  function toJpeg(image, maxSide) {
+    const w = image.naturalWidth || image.width, h = image.naturalHeight || image.height;
+    const scale = Math.min(1, maxSide / Math.max(w, h));
     const c = document.createElement("canvas");
-    c.width = Math.round(bitmap.width * scale); c.height = Math.round(bitmap.height * scale);
-    c.getContext("2d").drawImage(bitmap, 0, 0, c.width, c.height);
+    c.width = Math.max(1, Math.round(w * scale)); c.height = Math.max(1, Math.round(h * scale));
+    c.getContext("2d").drawImage(image, 0, 0, c.width, c.height);
     return c;
   }
-  const canvasBlob = (c, q) => new Promise((res) => c.toBlob(res, "image/jpeg", q));
+  const canvasBlob = (c, q) => new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("toBlob failed"))), "image/jpeg", q));
 
   // ---------- scanning ----------
   function normalizeScan(raw) {
@@ -430,18 +444,24 @@ Reply with only one JSON object with exactly these fields:
     sampling_disabled: "Claude isn't available for your account, so the scanner can't run here.",
     rate_limited: "The scanner is busy or you've hit your usage limit. Wait a minute, then try again.",
     session_expired: "You've been signed out of Claude. Sign in again, then try the photo again.",
-    image_rejected: "That file couldn't be read. Use a JPEG or PNG photo.",
-    images_unavailable: "Photo scanning isn't available in this Claude app yet. Try claude.ai in a web browser.",
+    image_rejected: "This photo's format can't be read here (iPhone HEIC photos often can't). Take the photo with the red ball button, or use a JPEG or PNG.",
+    no_scanner: "The scanner only runs when this page is open on claude.ai and you're signed in. Open the link in a browser where you're signed in to Claude.",
+    images_unavailable: "This Claude app can't send photos to the scanner yet. Open the link in Safari or Chrome at claude.ai instead.",
     refused: "The scanner declined this photo. Try a different picture of the dog.",
     invalid_json: "The scanner's answer came back garbled. Tap Spot another dog and try again.",
   };
 
+  const NO_PHOTO = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 30"><rect width="40" height="30" fill="#c9d5cb"/><g fill="#7d8a82"><circle cx="20" cy="18" r="4"/><circle cx="14" cy="12" r="2"/><circle cx="18" cy="9" r="2"/><circle cx="22" cy="9" r="2"/><circle cx="26" cy="12" r="2"/></g></svg>');
+  const photoSrc = (t) => t || NO_PHOTO;
+
+  const SENDABLE = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
+  function showMiss(title, msg, code) {
+    $("scan-area").innerHTML = `<div class="miss"><h3>${esc(title)}</h3><p>${esc(msg)}</p>${code ? `<p class="code">Error code: ${esc(code)}</p>` : ""}</div>`;
+  }
+
   async function handlePhoto(file) {
     if (!file || state.busy) return;
-    if (!state.sample || !state.imagesOk) {
-      toast("Open this page on claude.ai to scan dogs.");
-      return;
-    }
     state.busy = true;
     $("scanner").hidden = true; $("again-row").hidden = true;
     const area = $("scan-area"); area.hidden = false;
@@ -449,14 +469,21 @@ Reply with only one JSON object with exactly these fields:
     area.innerHTML = `<div class="scanning"><img alt="Your photo" src="${previewUrl}"><div class="beam"></div><span class="label">SCANNING ATTRIBUTES…</span></div>`;
 
     try {
-      let bitmap;
-      try { bitmap = await loadBitmap(file); }
-      catch { throw { code: "image_rejected" }; }
-      const scanBlob = await canvasBlob(toJpeg(bitmap, 1568, 0.85), 0.85);
-      const thumb = toJpeg(bitmap, 420, 0.72).toDataURL("image/jpeg", 0.72);
-      bitmap.close?.();
+      if (!state.sample) throw { code: "no_scanner" };
 
-      const raw = await state.sample.json(SCAN_PROMPT, { images: scanBlob, modelTier: "default", cache: false });
+      // Shrink the photo for the scanner and make a small thumbnail for the Dogdex.
+      // If this browser can't decode it, send the original file and skip the thumbnail.
+      let scanImage = file, thumb = "";
+      try {
+        const image = await loadImage(file);
+        scanImage = await canvasBlob(toJpeg(image, 1568), 0.85);
+        thumb = toJpeg(image, 420).toDataURL("image/jpeg", 0.72);
+        image.close?.();
+      } catch {
+        if (!SENDABLE.includes(file.type)) throw { code: "image_rejected" };
+      }
+
+      const raw = await state.sample.json(SCAN_PROMPT, { images: scanImage, modelTier: "default", cache: false });
       const scan = normalizeScan(raw);
       const owned = scan.is_dog && state.catches.some((c) => breedKey(c.breed) === breedKey(scan.breed));
       const outcome = scoreCatch(scan, owned);
@@ -465,9 +492,9 @@ Reply with only one JSON object with exactly these fields:
       renderResult(scan, outcome, thumb, saved);
       $("nickname-input").value = "";
     } catch (e) {
-      const code = e && e.code;
-      const msg = SCAN_ERRORS[code] || "The scanner lost the signal. Check your connection and try again.";
-      area.innerHTML = `<div class="miss"><h3>Scan failed</h3><p>${esc(msg)}</p></div>`;
+      const code = (e && e.code) || "unknown";
+      console.error("Dogspotting scan failed:", e);
+      showMiss("Scan failed", SCAN_ERRORS[code] || "The scanner lost the signal. Check your connection and try again.", code);
     } finally {
       URL.revokeObjectURL(previewUrl);
       state.busy = false;
@@ -527,7 +554,7 @@ Reply with only one JSON object with exactly these fields:
     return `<article class="card ${scan.rarity}">
       ${newBreed ? `<div class="ribbon">NEW</div>` : ""}
       <div class="head"><h3>${esc(scan.breed)}</h3><span class="stars" aria-label="${scan.rarity}">${STARS[scan.rarity]}</span></div>
-      <img class="photo" src="${thumb}" alt="${esc(scan.breed)}">
+      <img class="photo" src="${photoSrc(thumb)}" alt="${esc(scan.breed)}">
       <div class="body">
         <div class="tierline"><b>${scan.rarity}</b><span>${Math.round(scan.confidence * 100)}% match${nickname ? " · " + esc(nickname) : ""}${when ? " · " + esc(when) : ""}</span></div>
         ${mix}
@@ -560,7 +587,7 @@ Reply with only one JSON object with exactly these fields:
     $("dex-detail").hidden = true;
     $("dex-grid").innerHTML = entries.length
       ? entries.map((e, i) => `<button class="dex-entry ${e.best.rarity}" data-i="${i}" type="button">
-          <img src="${e.best.thumb}" alt="" loading="lazy">
+          <img src="${photoSrc(e.best.thumb)}" alt="" loading="lazy">
           <span class="meta"><strong>${esc(e.best.breed)}</strong><small><b>${STARS[e.best.rarity]}</b> · seen ×${e.count}</small></span>
         </button>`).join("")
       : `<div class="empty" style="grid-column:1/-1">Your Dogdex is empty. Each breed you spot shows up here with your best photo.</div>`;
@@ -640,7 +667,7 @@ Reply with only one JSON object with exactly these fields:
     state.sample = sample;
     if (sample) {
       const caps = await sample.limits().catch(() => null);
-      state.imagesOk = !!caps?.images;
+      state.imagesOk = caps ? !!caps.images : true; // unknown: let the scan try
     }
     state.db = db;
     state.uid = user ? await user.id() : null;
